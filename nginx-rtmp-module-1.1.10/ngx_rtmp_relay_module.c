@@ -25,10 +25,6 @@ static char * ngx_rtmp_relay_push_pull(ngx_conf_t *cf, ngx_command_t *cmd,
        void *conf);
 static ngx_int_t ngx_rtmp_relay_publish(ngx_rtmp_session_t *s,
        ngx_rtmp_publish_t *v);
-static ngx_rtmp_relay_ctx_t * ngx_rtmp_relay_create_connection(
-       ngx_rtmp_conf_ctx_t *cctx, ngx_str_t* name,
-       ngx_rtmp_relay_target_t *target);
-
 
 /*                _____
  * =push=        |     |---publish--->
@@ -216,14 +212,13 @@ ngx_rtmp_relay_merge_app_conf(ngx_conf_t *cf, void *parent, void *child)
 }
 
 
-static void
+void
 ngx_rtmp_relay_static_pull_reconnect(ngx_event_t *ev)
 {
     ngx_rtmp_relay_static_t    *rs = ev->data;
 
     ngx_rtmp_relay_ctx_t       *ctx;
     ngx_rtmp_relay_app_conf_t  *racf;
-
     racf = ngx_rtmp_get_module_app_conf(&rs->cctx, ngx_rtmp_relay_module);
 
     ngx_log_debug0(NGX_LOG_DEBUG_RTMP, racf->log, 0,
@@ -244,6 +239,7 @@ ngx_rtmp_relay_static_pull_reconnect(ngx_event_t *ev)
 static void
 ngx_rtmp_relay_push_reconnect(ngx_event_t *ev)
 {
+
     ngx_rtmp_session_t             *s = ev->data;
 
     ngx_rtmp_relay_app_conf_t      *racf;
@@ -253,7 +249,6 @@ ngx_rtmp_relay_push_reconnect(ngx_event_t *ev)
 
     ngx_log_debug0(NGX_LOG_DEBUG_RTMP, s->connection->log, 0,
             "relay: push reconnect");
-
     racf = ngx_rtmp_get_module_app_conf(s, ngx_rtmp_relay_module);
 
     ctx = ngx_rtmp_get_module_ctx(s, ngx_rtmp_relay_module);
@@ -334,7 +329,7 @@ ngx_rtmp_relay_copy_str(ngx_pool_t *pool, ngx_str_t *dst, ngx_str_t *src)
 }
 
 
-static ngx_rtmp_relay_ctx_t *
+ngx_rtmp_relay_ctx_t *
 ngx_rtmp_relay_create_connection(ngx_rtmp_conf_ctx_t *cctx, ngx_str_t* name,
         ngx_rtmp_relay_target_t *target)
 {
@@ -350,7 +345,7 @@ ngx_rtmp_relay_create_connection(ngx_rtmp_conf_ctx_t *cctx, ngx_str_t* name,
     ngx_int_t                       rc;
     ngx_str_t                       v, *uri;
     u_char                         *first, *last, *p;
-
+    
     racf = ngx_rtmp_get_module_app_conf(cctx, ngx_rtmp_relay_module);
 
     ngx_log_debug0(NGX_LOG_DEBUG_RTMP, racf->log, 0,
@@ -641,7 +636,7 @@ ngx_rtmp_relay_push(ngx_rtmp_session_t *s, ngx_str_t *name,
     ngx_log_error(NGX_LOG_INFO, s->connection->log, 0,
             "relay: create push name='%V' app='%V' playpath='%V' url='%V'",
             name, &target->app, &target->play_path, &target->url.url);
-
+    
     return ngx_rtmp_relay_create(s, name, target,
             ngx_rtmp_relay_create_local_ctx,
             ngx_rtmp_relay_create_remote_ctx);
@@ -1281,7 +1276,6 @@ ngx_rtmp_relay_on_status(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
           in_inf, sizeof(in_inf) },
     };
 
-
     ctx = ngx_rtmp_get_module_ctx(s, ngx_rtmp_relay_module);
     if (ctx == NULL || !s->relay) {
         return NGX_OK;
@@ -1327,7 +1321,7 @@ ngx_rtmp_relay_close(ngx_rtmp_session_t *s)
     ngx_uint_t                          hash;
 
     racf = ngx_rtmp_get_module_app_conf(s, ngx_rtmp_relay_module);
-
+    
     ctx = ngx_rtmp_get_module_ctx(s, ngx_rtmp_relay_module);
     if (ctx == NULL) {
         return;
@@ -1370,13 +1364,15 @@ ngx_rtmp_relay_close(ngx_rtmp_session_t *s)
                 &ctx->app, &ctx->name, n);
         }
 #endif
-
-        if (ctx->publish->play == NULL && ctx->publish->session->relay) {
-            ngx_log_debug2(NGX_LOG_DEBUG_RTMP,
-                 ctx->publish->session->connection->log, 0,
-                "relay: publish disconnect empty app='%V' name='%V'",
-                &ctx->app, &ctx->name);
-            ngx_rtmp_finalize_session(ctx->publish->session);
+        if(ctx->publish->session) // liw
+        {
+            if (ctx->publish->play == NULL && ctx->publish->session->relay) {
+                ngx_log_debug2(NGX_LOG_DEBUG_RTMP,
+                        ctx->publish->session->connection->log, 0,
+                        "relay: publish disconnect empty app='%V' name='%V'",
+                        &ctx->app, &ctx->name);
+                ngx_rtmp_finalize_session(ctx->publish->session);
+            }
         }
 
         ctx->publish = NULL;
@@ -1415,7 +1411,7 @@ static ngx_int_t
 ngx_rtmp_relay_close_stream(ngx_rtmp_session_t *s, ngx_rtmp_close_stream_t *v)
 {
     ngx_rtmp_relay_app_conf_t  *racf;
-
+    
     racf = ngx_rtmp_get_module_app_conf(s, ngx_rtmp_relay_module);
     if (racf && !racf->session_relay) {
         ngx_rtmp_relay_close(s);
