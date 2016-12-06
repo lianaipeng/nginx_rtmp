@@ -291,6 +291,7 @@ rtmp_auto_push directive.
                 rtmp_stat_stylesheet stat.xsl;
             }
 
+            # 监控xsl的源码路径
             location /stat.xsl {
                 # XML stylesheet to view RTMP stats.
                 # Copy stat.xsl wherever you want
@@ -357,6 +358,12 @@ rtmp_auto_push directive.
                 # 转推地址 当缓存功能开启时使用，否则:
                 # push 172.16.69.5:1935/live/;
                 stream_push 172.16.69.5:1935/live/;
+                
+                #stream_push wsht-push.v.momocdn.com/mlive/;
+                #stream_push yfht-push.v.momocdn.com/live/;
+                #stream_push xyht-push.v.momocdn.com/momo/;
+                #stream_push ksht-push.v.momocdn.com/live/;
+                #stream_push aliht-push.v.momocdn.com/momo/;
             }
         }
     }
