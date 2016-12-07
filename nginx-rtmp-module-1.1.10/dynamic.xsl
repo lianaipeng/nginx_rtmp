@@ -22,9 +22,13 @@
             <a href="http://nginx.org">nginx</a>&#160;<xsl:value-of select="/rtmp/nginx_version"/>,
             pid <xsl:value-of select="/rtmp/pid"/>,
             built <xsl:value-of select="/rtmp/built"/>&#160;<xsl:value-of select="/rtmp/compiler"/>
-            <script>
-                 setTimeout(function() { location.reload(); }, 1000);
-            </script>
+<script>
+  setTimeout(function() { location.reload(); }, 1000);
+  var d=document.getElementsByClassName('data-panel')[0];
+  var match = location.search.match(/show/)
+  if (match) { d.style.display = '' }
+  else { d.style.display = 'none'}
+ </script>
         </body>
     </html>
 </xsl:template>
@@ -171,6 +175,7 @@
                 <xsl:attribute name="onclick">
                     var d=document.getElementById('<xsl:value-of select="../../name"/>-<xsl:value-of select="name"/>');
                     d.style.display=d.style.display=='none'?'':'none';
+                    location.search = location.search ? '' : 'show'
                     return false
                 </xsl:attribute>
                 <xsl:value-of select="name"/>
@@ -323,7 +328,7 @@
     </tr>
 
 
-    <tr style="display:none">
+    <tr style="" class="data-panel">
         <xsl:attribute name="id">
             <xsl:value-of select="../../name"/>-<xsl:value-of select="name"/>
         </xsl:attribute>
