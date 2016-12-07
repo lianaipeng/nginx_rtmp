@@ -299,6 +299,23 @@ rtmp_auto_push directive.
                 root /path/to/stat.xsl/;
             }
 
+            location /dynamic {
+                rtmp_stat all;
+
+                # Use this stylesheet to view XML as web page
+                # in browser
+                rtmp_stat_stylesheet dynamic.xsl;
+            }
+            
+            # 监控xsl的源码路径
+            location /dynamic.xsl {
+                # XML stylesheet to view RTMP stats.
+                # Copy stat.xsl wherever you want
+                # and put the full directory path here
+                root /path/to/dynamic.xsl/;
+            }
+            
+            
             location /hls {
                 # Serve HLS fragments
                 types {
@@ -341,21 +358,20 @@ rtmp_auto_push directive.
             
             application myapp {
                 live on;
-
+                
                 # 缓存功能 开启/关闭
                 push_cache on;
-                # 缓存功能关闭
-
+                
                 # 延时关闭链接 开启/关闭
                 # 推流断开时，是否延时关闭拉流链接（只有在idle_stream 启用的时候才有用）
                 publish_delay_close on;
-
-                # 缓存音视频时常 必须大于0
+                
+                # 缓存音视频时常（单位ms） 必须大于0
                 push_cache_time_len  120000;
                 # 缓存帧数 必须大于0
                 push_cache_frame_num 256;
-
-                # 转推地址 当缓存功能开启时使用，否则:
+                
+                # 缓存转推地址 当缓存功能开启时使用，否则:
                 # push 172.16.69.5:1935/live/;
                 stream_push 172.16.69.5:1935/live/;
                 
