@@ -784,14 +784,14 @@ ngx_rtmp_live_close_stream(ngx_rtmp_session_t *s, ngx_rtmp_close_stream_t *v)
     // 该上下文对应的流  对应的上下文不为空
     if (ctx->stream->ctx) {
         // 置空session，dump cache 时走ngx_rtmp_live_av_to_play
-        if ( ctx->publishing) {
+        if ( ctx->publishing ) {
             ctx->stream->session = NULL;
             
             ngx_rtmp_live_push_cache_t *pct = ctx->stream->push_cache_tail;
             if(pct != NULL && pct->has_closed != 1){
                 pct->has_closed = 1;
                 ctx->stream->push_cache_delta = pct->frame_pts;
-                printf("LLLLL ##################### closed delta:%ld\n", ctx->stream->push_cache_delta);
+                //printf("LLLLL ##################### closed delta:%ld\n", ctx->stream->push_cache_delta);
                 
                 ctx->stream->closed_count += 1;
             } 
@@ -809,9 +809,11 @@ ngx_rtmp_live_close_stream(ngx_rtmp_session_t *s, ngx_rtmp_close_stream_t *v)
 
         ctx->stream = NULL;
         goto next;
-    }
-    else{
+    } else {
         if(ctx->stream){
+            ctx->stream->push_cache_delta = 0;
+            printf("-------------- all connection is closed\n");
+            
             ngx_rtmp_stream_relay_close(ctx->stream);
             ngx_rtmp_live_free_push_cache(ctx->stream); 
         }
@@ -1864,7 +1866,7 @@ ngx_rtmp_live_av_to_cache(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
     ctx->stream->current_time = s->current_time;
      
     timestamp = ctx->stream->push_cache_delta + h->timestamp;
-    printf("LLLLL ##### h->timestamp:%d, timestamp:%ld\n", h->timestamp, timestamp);
+    //printf("LLLLL ##### h->timestamp:%d, timestamp:%ld\n", h->timestamp, timestamp);
     codec_ctx = ngx_rtmp_get_module_ctx(s, ngx_rtmp_codec_module);
     // 判断H264头
     if (h->type == NGX_RTMP_MSG_AUDIO) {
@@ -2266,6 +2268,8 @@ ngx_rtmp_free_frame_buffer(ngx_rtmp_live_stream_t *stream, ngx_chain_t *in){
 }
 
 
+
+
 // RELAY 
 
 static char *
@@ -2544,15 +2548,21 @@ ngx_rtmp_stream_relay_push(ngx_rtmp_live_stream_t *stream, ngx_str_t *name, ngx_
 static void
 ngx_rtmp_stream_relay_push_reconnect(ngx_event_t *ev)
 {
+    printf("LLLLL ngx_rtmp_stream_relay_push_reconnect\n");
+
     ngx_rtmp_live_app_conf_t      *lacf;
     ngx_rtmp_relay_ctx_t           *ctx, *pctx;
     ngx_uint_t                      n;
     ngx_rtmp_relay_target_t        *target, **t;
 
     ngx_rtmp_live_stream_t *stream = ev->data;
-
+    if( stream ) {
+        stream->relay_count += 1;
+        return;
+    }
+    
     lacf = stream->lacf;
-
+    
     ctx = stream->relay_ctx;
     if (ctx == NULL) {
         return;
@@ -2594,6 +2604,7 @@ ngx_rtmp_stream_relay_push_reconnect(ngx_event_t *ev)
 static void
 ngx_rtmp_stream_relay_publish(ngx_rtmp_live_stream_t *stream, ngx_rtmp_publish_t *v)
 {
+    printf("LLLLL ngx_rtmp_stream_relay_publish\n");
     ngx_rtmp_live_app_conf_t      *lacf;
     ngx_rtmp_relay_target_t        *target, **t;
     ngx_str_t                       name;
@@ -2603,7 +2614,7 @@ ngx_rtmp_stream_relay_publish(ngx_rtmp_live_stream_t *stream, ngx_rtmp_publish_t
 
     lacf =  stream->lacf;
     
-    //printf("############# stream_push_reconnect:%ld\n", lacf->stream_push_reconnect);
+    printf("############# stream_push_reconnect:%ld\n", lacf->stream_push_reconnect);
     
     if (lacf == NULL || lacf->pushes.nelts == 0) {
         goto next;

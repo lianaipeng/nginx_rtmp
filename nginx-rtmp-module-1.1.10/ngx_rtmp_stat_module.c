@@ -384,12 +384,13 @@ ngx_rtmp_stat_client(ngx_http_request_t *r, ngx_chain_t ***lll,
         NGX_RTMP_STAT_ES(&s->swf_url);
         NGX_RTMP_STAT_L("</swfurl>");
     }
-
+    /*
     if (s->tc_url.len) {
         NGX_RTMP_STAT_L("<tcurl>");
         NGX_RTMP_STAT_ES(&s->tc_url);
         NGX_RTMP_STAT_L("</tcurl>");
     }
+    */
 }
 static void
 ngx_rtmp_stat_publish(ngx_http_request_t *r, ngx_chain_t ***lll,
@@ -575,7 +576,7 @@ ngx_rtmp_stat_push_cache(ngx_http_request_t *r, ngx_chain_t ***lll, ngx_rtmp_liv
     u_char  buf[NGX_INT_T_LEN];
     ngx_rtmp_live_push_cache_t  *pch, *pct, *pc;
     ngx_uint_t          cache_len, cache_alen, cache_vlen, nrelays;
-    ngx_rtmp_relay_ctx_t           *rctx;
+    //ngx_rtmp_relay_ctx_t           *rctx;
 
     NGX_RTMP_STAT_L("<cache_count>");
     NGX_RTMP_STAT(buf, ngx_snprintf(buf, sizeof(buf), "%ui",
@@ -618,9 +619,14 @@ ngx_rtmp_stat_push_cache(ngx_http_request_t *r, ngx_chain_t ***lll, ngx_rtmp_liv
     NGX_RTMP_STAT(buf, ngx_snprintf(buf, sizeof(buf), "%ui",
                 (ngx_uint_t) cache_vlen) - buf);
     NGX_RTMP_STAT_L("</cache_vlen>");
-
-    for (rctx = stream->relay_ctx; rctx; rctx = rctx->next)
+    
+    nrelays = stream->relay_count;
+    /*
+    //for (rctx = stream->relay_ctx->publish->play; rctx; rctx = rctx->next) {
+    for (rctx = stream->relay_ctx->play; rctx; rctx = rctx->next) {
         nrelays += 1;
+    }
+    */
     NGX_RTMP_STAT_L("<nrelays>");
     NGX_RTMP_STAT(buf, ngx_snprintf(buf, sizeof(buf),
                 "%ui", nrelays) - buf);

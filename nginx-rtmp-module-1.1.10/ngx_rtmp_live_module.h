@@ -159,6 +159,7 @@ struct ngx_rtmp_live_stream_s {
     ngx_msec_t                          push_cache_delta;
     ngx_uint_t                          ndropped;
     ngx_flag_t                          interleave;
+    ngx_uint_t                          relay_count;
 };
 
 
