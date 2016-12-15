@@ -156,6 +156,7 @@ struct ngx_rtmp_live_stream_s {
     //ngx_uint_t                          cache_len;
     ngx_msec_t                          push_cache_alts;   // audio last timestamp 
     ngx_msec_t                          push_cache_vlts;   // video last timestamp  
+    ngx_msec_t                          push_cache_delta;
     ngx_uint_t                          ndropped;
     ngx_flag_t                          interleave;
 };

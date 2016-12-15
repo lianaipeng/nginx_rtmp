@@ -306,7 +306,7 @@ ngx_rtmp_live_set_msec_slot(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 static ngx_rtmp_live_stream_t **
 ngx_rtmp_live_get_stream(ngx_rtmp_session_t *s, u_char *name, int create)
 {
-    printf("TTTTT ngx_rtmp_live_get_stream\n");
+    //printf("TTTTT ngx_rtmp_live_get_stream\n");
     ngx_rtmp_live_app_conf_t   *lacf;
     ngx_rtmp_live_stream_t    **stream;
     size_t                      len;
@@ -359,7 +359,7 @@ ngx_rtmp_live_get_stream(ngx_rtmp_session_t *s, u_char *name, int create)
 static void
 ngx_rtmp_live_idle(ngx_event_t *pev)
 {
-    printf("TTTTT ngx_rtmp_live_idle\n");
+    //printf("TTTTT ngx_rtmp_live_idle\n");
     ngx_connection_t           *c;
     ngx_rtmp_session_t         *s;
 
@@ -378,7 +378,7 @@ ngx_rtmp_live_set_status(ngx_rtmp_session_t *s, ngx_chain_t *control,
                          ngx_chain_t **status, size_t nstatus,
                          unsigned active)
 {
-    printf("TTTTT ngx_rtmp_live_set_status\n");
+    //printf("TTTTT ngx_rtmp_live_set_status\n");
     ngx_rtmp_live_app_conf_t   *lacf;
     ngx_rtmp_live_ctx_t        *ctx, *pctx;
     ngx_chain_t               **cl;
@@ -471,7 +471,7 @@ ngx_rtmp_live_set_status(ngx_rtmp_session_t *s, ngx_chain_t *control,
 static void
 ngx_rtmp_live_start(ngx_rtmp_session_t *s)
 {
-    printf("TTTTT ngx_rtmp_live_start\n");
+    //printf("TTTTT ngx_rtmp_live_start\n");
     ngx_rtmp_core_srv_conf_t   *cscf;
     ngx_rtmp_live_app_conf_t   *lacf;
     ngx_chain_t                *control;
@@ -513,7 +513,7 @@ ngx_rtmp_live_start(ngx_rtmp_session_t *s)
 static void
 ngx_rtmp_live_stop(ngx_rtmp_session_t *s)
 {
-    printf("TTTTT ngx_rtmp_live_stop\n");
+    //printf("TTTTT ngx_rtmp_live_stop\n");
     ngx_rtmp_core_srv_conf_t   *cscf;
     ngx_rtmp_live_app_conf_t   *lacf;
     ngx_chain_t                *control;
@@ -554,7 +554,7 @@ ngx_rtmp_live_stop(ngx_rtmp_session_t *s)
 static ngx_int_t
 ngx_rtmp_live_stream_begin(ngx_rtmp_session_t *s, ngx_rtmp_stream_begin_t *v)
 {
-    printf("TTTTT ngx_rtmp_live_stream_begin\n");
+    //printf("TTTTT ngx_rtmp_live_stream_begin\n");
     ngx_rtmp_live_ctx_t    *ctx;
 
     ctx = ngx_rtmp_get_module_ctx(s, ngx_rtmp_live_module);
@@ -576,7 +576,7 @@ next:
 static ngx_int_t
 ngx_rtmp_live_stream_eof(ngx_rtmp_session_t *s, ngx_rtmp_stream_eof_t *v)
 {
-    printf("TTTTT ngx_rtmp_live_stream_eof\n");
+    //printf("TTTTT ngx_rtmp_live_stream_eof\n");
     ngx_rtmp_live_ctx_t    *ctx;
 
     ctx = ngx_rtmp_get_module_ctx(s, ngx_rtmp_live_module);
@@ -598,7 +598,7 @@ next:
 static void
 ngx_rtmp_live_join(ngx_rtmp_session_t *s, u_char *name, unsigned publisher)
 {
-    printf("TTTTT ngx_rtmp_live_join\n");
+    //printf("TTTTT ngx_rtmp_live_join\n");
     ngx_rtmp_live_ctx_t            *ctx;
     ngx_rtmp_live_stream_t        **stream;
     ngx_rtmp_live_app_conf_t       *lacf;
@@ -724,7 +724,7 @@ ngx_rtmp_live_free_push_cache(ngx_rtmp_live_stream_t *stream)
 static ngx_int_t
 ngx_rtmp_live_close_stream(ngx_rtmp_session_t *s, ngx_rtmp_close_stream_t *v)
 {
-    printf("TTTTT ngx_rtmp_live_close_stream\n");
+    //printf("TTTTT ngx_rtmp_live_close_stream\n");
     ngx_rtmp_session_t             *ss;
     ngx_rtmp_live_ctx_t            *ctx, **cctx, *pctx;
     ngx_rtmp_live_stream_t        **stream;
@@ -790,6 +790,8 @@ ngx_rtmp_live_close_stream(ngx_rtmp_session_t *s, ngx_rtmp_close_stream_t *v)
             ngx_rtmp_live_push_cache_t *pct = ctx->stream->push_cache_tail;
             if(pct != NULL && pct->has_closed != 1){
                 pct->has_closed = 1;
+                ctx->stream->push_cache_delta = pct->frame_pts;
+                printf("LLLLL ##################### closed delta:%ld\n", ctx->stream->push_cache_delta);
                 
                 ctx->stream->closed_count += 1;
             } 
@@ -845,7 +847,7 @@ next:
 static ngx_int_t
 ngx_rtmp_live_pause(ngx_rtmp_session_t *s, ngx_rtmp_pause_t *v)
 {
-    printf("TTTTT ngx_rtmp_live_pause\n");
+    //printf("TTTTT ngx_rtmp_live_pause\n");
     ngx_rtmp_live_ctx_t            *ctx;
 
     ctx = ngx_rtmp_get_module_ctx(s, ngx_rtmp_live_module);
@@ -892,7 +894,6 @@ static ngx_int_t
 ngx_rtmp_live_av_to_net(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
                  ngx_chain_t *in)
 {
-    //printf("TTTTT ngx_rtmp_live_av_to_net\n");
     ngx_rtmp_live_ctx_t            *ctx, *pctx;
     ngx_rtmp_codec_ctx_t           *codec_ctx;
     ngx_chain_t                    *header, *coheader, *meta,
@@ -974,7 +975,8 @@ ngx_rtmp_live_av_to_net(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
     
     // 初始化 ngx_rtmp_header_t  三类
     ngx_memzero(&ch, sizeof(ch));
-
+    
+    // current header
     ch.timestamp = h->timestamp;
     ch.msid = NGX_RTMP_MSID;
     ch.csid = cs->csid;
@@ -982,6 +984,8 @@ ngx_rtmp_live_av_to_net(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
     // last header  current header
     lh = ch;
     
+    //printf("LLLLL csidx:%ld, cs->active:%d\n", csidx, cs->active);
+    // last header 
     if (cs->active) {
         lh.timestamp = cs->timestamp;
     }
@@ -990,10 +994,12 @@ ngx_rtmp_live_av_to_net(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
     clh.type = (h->type == NGX_RTMP_MSG_AUDIO ? NGX_RTMP_MSG_VIDEO :
                                                 NGX_RTMP_MSG_AUDIO);
     
+    // chunk stream 的时间戳
     cs->active = 1;
     cs->timestamp = ch.timestamp;
     // 时间差
     delta = ch.timestamp - lh.timestamp;
+    //printf("LLLLL h->timestamp:%d lh.timestamp:%d ch.timestamp:%d cs->timestamp:%d c-l delta:%d\n", h->timestamp, lh.timestamp, ch.timestamp, cs->timestamp, delta);
     
 /*
     if (delta >> 31) {
@@ -1147,7 +1153,8 @@ ngx_rtmp_live_av_to_net(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
                     ngx_rtmp_prepare_message(s, &clh, NULL, aapkt);
                 }
             }
-            
+           
+            // 发送 AV header 
             if (header || coheader) {
                 /* send absolute codec header */
                 // 发送绝对头
@@ -1829,6 +1836,7 @@ ngx_rtmp_live_av_to_cache(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
     ngx_uint_t                      prio;
     ngx_rtmp_codec_ctx_t           *codec_ctx;
     ngx_int_t                       mandatory;
+    ngx_msec_t                      timestamp;
 
     //  获取上下文
     ctx = ngx_rtmp_get_module_ctx(s, ngx_rtmp_live_module);
@@ -1849,25 +1857,14 @@ ngx_rtmp_live_av_to_cache(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
     mandatory = 0;
     prio = (h->type == NGX_RTMP_MSG_VIDEO ?
             ngx_rtmp_get_video_frame_type(in) : 0);
-    
-
+     
     // ############### 缓存数据
     lacf = ngx_rtmp_get_module_app_conf(s, ngx_rtmp_live_module);
     ctx->stream->session = s;
     ctx->stream->current_time = s->current_time;
      
-    pc->frame_type = h->type ;
-    pc->frame_pts = h->timestamp;    // 时间戳
-    pc->frame_flag = prio;           // 是否为关键帧
-    pc->frame_buf = ngx_rtmp_append_data_to_push_cache(cscf->chunk_size, ctx->stream, NULL, in);
-    pc->frame_len = h->mlen;         // 每一帧长度
-    pc->frame_header = *h;
-    pc->next = NULL;  
-    /* 
-    ngx_uint_t                          cache_alts;   // audio last timestamp 
-    ngx_uint_t                          cache_vlts;   // video last timestamp  
-    ngx_uint_t                          cache_fcount;
-    */
+    timestamp = ctx->stream->push_cache_delta + h->timestamp;
+    printf("LLLLL ##### h->timestamp:%d, timestamp:%ld\n", h->timestamp, timestamp);
     codec_ctx = ngx_rtmp_get_module_ctx(s, ngx_rtmp_codec_module);
     // 判断H264头
     if (h->type == NGX_RTMP_MSG_AUDIO) {
@@ -1878,7 +1875,7 @@ ngx_rtmp_live_av_to_cache(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
             ngx_rtmp_stream_codec_ctx_copy(codec_ctx, ctx->stream);
         }
 
-        ctx->stream->push_cache_alts = h->timestamp;
+        ctx->stream->push_cache_alts = timestamp;
     } else {
         if (codec_ctx->video_codec_id == NGX_RTMP_VIDEO_H264 &&
                 ngx_rtmp_is_codec_header(in))
@@ -1887,9 +1884,16 @@ ngx_rtmp_live_av_to_cache(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
             ngx_rtmp_stream_codec_ctx_copy(codec_ctx, ctx->stream);
         }
         
-        ctx->stream->push_cache_vlts = h->timestamp;
+        ctx->stream->push_cache_vlts = timestamp;
     }
-    pc->mandatory = mandatory;
+    pc->mandatory = mandatory;       // 是否为 音视频pps sps头
+    pc->frame_type = h->type ;
+    pc->frame_flag = prio;           // 是否为关键帧
+    pc->frame_pts = timestamp;    // 时间戳
+    pc->frame_buf = ngx_rtmp_append_data_to_push_cache(cscf->chunk_size, ctx->stream, NULL, in);
+    pc->frame_len = h->mlen;         // 每一帧长度
+    pc->frame_header = *h;
+    pc->next = NULL;  
     // ############### 缓存数据
        
     pch = ctx->stream->push_cache_head;
@@ -1941,7 +1945,7 @@ ngx_rtmp_live_av(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
                  ngx_chain_t *in)
 {
     ngx_int_t ret;
-
+       
     ngx_rtmp_live_app_conf_t       *lacf;
     ngx_rtmp_live_ctx_t            *ctx;
     lacf = ngx_rtmp_get_module_app_conf(s, ngx_rtmp_live_module);
@@ -1951,12 +1955,12 @@ ngx_rtmp_live_av(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
     }else{
         ret = ngx_rtmp_live_av_to_net(s, h, in);
     }
-
+    
     ctx = ngx_rtmp_get_module_ctx(s, ngx_rtmp_live_module);
     if (ctx == NULL || !ctx->publishing) {
         return ret;   
     }
-
+    
     ngx_rtmp_stream_publish_header_copy(s, &ctx->stream->codec_ctx, ctx->stream, lacf->push_cache);
          
     ngx_rtmp_update_bandwidth(&ctx->stream->bw_in, h->mlen);
@@ -1971,7 +1975,7 @@ ngx_rtmp_live_av(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
 static ngx_int_t
 ngx_rtmp_live_publish(ngx_rtmp_session_t *s, ngx_rtmp_publish_t *v)
 {
-    printf("TTTTT ngx_rtmp_live_publish\n");
+    //printf("TTTTT ngx_rtmp_live_publish\n");
     ngx_rtmp_live_app_conf_t       *lacf;
     ngx_rtmp_live_ctx_t            *ctx;
 
@@ -2021,7 +2025,7 @@ next:
 static ngx_int_t
 ngx_rtmp_live_play(ngx_rtmp_session_t *s, ngx_rtmp_play_t *v)
 {
-    printf("TTTTT ngx_rtmp_live_play v->name:%s\n", v->name);
+    //printf("TTTTT ngx_rtmp_live_play v->name:%s\n", v->name);
     ngx_rtmp_live_app_conf_t       *lacf;
     ngx_rtmp_live_ctx_t            *ctx;
 
