@@ -169,12 +169,7 @@ struct ngx_rtmp_live_stream_s {
     ngx_msec_t                          push_cache_lts;   
     ngx_msec_t                          push_cache_delta;  
     ngx_flag_t                          is_closed_publish;     // publish is closed 
-    /*
-    ngx_msec_t                          push_cache_alts;   
-    ngx_msec_t                          push_cache_adelta;  
-    ngx_msec_t                          push_cache_vlts;   
-    ngx_msec_t                          push_cache_vdelta;  
-    */
+
     ngx_uint_t                          ndropped;
     ngx_flag_t                          interleave;
     ngx_rtmp_relay_reconnect_t*          relay_reconnects;     // 

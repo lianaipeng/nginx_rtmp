@@ -422,7 +422,6 @@ ngx_rtmp_live_set_status(ngx_rtmp_session_t *s, ngx_chain_t *control,
 
         ctx->stream->active = active;
 
-        //printf("----------------- no change status\n");
         for (pctx = ctx->stream->ctx; pctx; pctx = pctx->next) {
             if (pctx->publishing == 0) {
                 ngx_rtmp_live_set_status(pctx->session, control, status,
@@ -700,7 +699,6 @@ ngx_rtmp_live_free_push_cache(ngx_rtmp_live_stream_t *stream)
             stream->push_cache_tail = NULL;
             stream->push_cache_count = 0;
         }
-        //printf("$$$$ free_push_cache after push_cache_count:%ld\n",stream->push_cache_count);
         ngx_rtmp_free_frame_buffer(stream, pch->frame_buf);
         pch = stream->push_cache_head;
     }
@@ -786,16 +784,12 @@ ngx_rtmp_live_close_stream(ngx_rtmp_session_t *s, ngx_rtmp_close_stream_t *v)
     if (ctx->stream->ctx) {
         // 置空session，dump cache 时走ngx_rtmp_live_av_to_play
         if ( ctx->publishing ) {
-            printf("publish close .......................\n");
             ctx->stream->session = NULL;
             ctx->stream->is_closed_publish = 1;
             
             ngx_rtmp_live_push_cache_t *pct = ctx->stream->push_cache_tail;
             if(pct != NULL && pct->has_closed != 1){
                 pct->has_closed = 1;
-                //ctx->stream->push_cache_delta = pct->frame_pts;
-                //printf("LLLLL ##################### closed delta:%ld\n", ctx->stream->push_cache_delta);
-                
                 ctx->stream->closed_count += 1;
             } 
 
@@ -805,25 +799,16 @@ ngx_rtmp_live_close_stream(ngx_rtmp_session_t *s, ngx_rtmp_close_stream_t *v)
                 ngx_rtmp_live_free_push_cache(ctx->stream); 
             } 
         }
-        else
-        {
-            printf("play close .......................\n");
-        }
 
         ctx->stream = NULL;
         goto next;
     } else {
         if(ctx->stream){
-            printf("-------------- all connection is closed\n");
             
             ngx_rtmp_stream_relay_close(ctx->stream);
             ngx_rtmp_live_free_push_cache(ctx->stream); 
-        } else {
-            printf("-------------- all connection is closed  stream is null\n");
         }
     }
-    printf("free stream ........................\n");
-    
      
     ngx_log_debug1(NGX_LOG_DEBUG_RTMP, s->connection->log, 0,
             "live: delete empty stream '%s'",
@@ -986,7 +971,6 @@ ngx_rtmp_live_av_to_net(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
     // last header  current header
     lh = ch;
     
-    //printf("LLLLL csidx:%ld, cs->active:%d\n", csidx, cs->active);
     // last header 
     if (cs->active) {
         lh.timestamp = cs->timestamp;
@@ -1001,7 +985,6 @@ ngx_rtmp_live_av_to_net(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
     cs->timestamp = ch.timestamp;
     // 时间差
     delta = ch.timestamp - lh.timestamp;
-    //printf("LLLLL h->timestamp:%d lh.timestamp:%d ch.timestamp:%d cs->timestamp:%d c-l delta:%d\n", h->timestamp, lh.timestamp, ch.timestamp, cs->timestamp, delta);
     
 /*
     if (delta >> 31) {
@@ -1031,7 +1014,6 @@ ngx_rtmp_live_av_to_net(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
                 coheader = codec_ctx->avc_header;
             }
             
-            //printf("###### audio_codec_id:%ld, \n", codec_ctx->audio_codec_id);
             if (codec_ctx->audio_codec_id == NGX_RTMP_AUDIO_AAC &&
                 ngx_rtmp_is_codec_header(in))
             {
@@ -1054,7 +1036,6 @@ ngx_rtmp_live_av_to_net(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
                 coheader = codec_ctx->aac_header;
             }
             
-            //printf("###### video_codec_id:%ld\n", codec_ctx->video_codec_id);
             if (codec_ctx->video_codec_id == NGX_RTMP_VIDEO_H264 &&
                 ngx_rtmp_is_codec_header(in))
             {
@@ -1115,13 +1096,11 @@ ngx_rtmp_live_av_to_net(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
             
             cs->active = 0;
             cs->dropped = 0;
-            printf("############## active:%d dropped:%d\n", cs->active, cs->dropped);
         }
         
         /* absolute packet */
         if (!cs->active) {
             // 如果头没到来
-            //printf("###### active mandatory %ld\n", mandatory);
             if (mandatory) {
                 ngx_log_debug0(NGX_LOG_DEBUG_RTMP, ss->connection->log, 0,
                         "live: skipping header");
@@ -1165,7 +1144,6 @@ ngx_rtmp_live_av_to_net(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
                                type_s, lh.timestamp);
 
                 if (header) {
-                    //printf("######## header %d\n", h->type);
                     if (apkt == NULL) {
                         apkt = ngx_rtmp_append_shared_bufs(cscf, NULL, header);
                         ngx_rtmp_prepare_message(s, &lh, NULL, apkt);
@@ -1178,7 +1156,6 @@ ngx_rtmp_live_av_to_net(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
                 }
 
                 if (coheader) {
-                    //printf("######## coheader %d\n", h->type);
                     if (acopkt == NULL) {
                         acopkt = ngx_rtmp_append_shared_bufs(cscf, NULL, coheader);
                         ngx_rtmp_prepare_message(s, &clh, NULL, acopkt);
@@ -1618,7 +1595,6 @@ ngx_rtmp_live_av_dump_cache_frame(ngx_rtmp_live_stream_t *stream)
             }
             stream->push_cache_head = pc->next;
             stream->push_cache_count -= 1;
-            //printf("## tpc->type:%ld, pc->type:%ld, ## tpc:%ld - pc:%ld = delta:%ld\n", tpc->frame_type, pc->frame_type, tpc->frame_pts, pc->frame_pts, delta);
         } else {
             stream->push_cache_head = NULL;
             stream->push_cache_tail = NULL;
@@ -1681,7 +1657,6 @@ nxg_rtmp_live_av_dump_cache(ngx_event_t *ev)
     do{
         // 下一帧发送时间
         delta = ngx_rtmp_live_av_dump_cache_frame(stream);
-        //printf("####relts:%ld, expts:%ld, delta:%ld\n", relts, expts, delta);
         
         if( delta > 0 )
             zeta -= delta;
@@ -1709,14 +1684,7 @@ nxg_rtmp_live_av_dump_cache(ngx_event_t *ev)
     {
         stream->push_cache_lts   = 0;
         stream->push_cache_delta = 0;
-        /*
-        stream->push_cache_alts   = 0;
-        stream->push_cache_adelta = 0;
-        stream->push_cache_vlts   = 0;
-        stream->push_cache_vdelta = 0;
-        */
         stream->is_start_relay   = 0;
-        printf("-d-d-d-d-d--d-d-d-d-d-d--d-d- is_start_relay:%ld\n", stream->is_start_relay);
          
         ngx_rtmp_stream_relay_close(stream);
     }
@@ -1896,41 +1864,15 @@ ngx_rtmp_live_av_to_cache(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
 
     timestamp = 0;
     if ( mandatory == 0 ) {
-        /*
-        if (h->type == NGX_RTMP_MSG_AUDIO){
-            last = ctx->stream->push_cache_adelta + ctx->stream->push_cache_alts; 
-            cur  = ctx->stream->push_cache_adelta + h->timestamp;
-            if ( last > cur ){
-                ctx->stream->push_cache_adelta += ctx->stream->push_cache_alts;       
-            }
-            timestamp = ctx->stream->push_cache_adelta + h->timestamp;
-
-            ctx->stream->push_cache_alts = h->timestamp;
-            ctx->stream->push_cache_aets = timestamp;
-        } else {
-            last = ctx->stream->push_cache_vdelta + ctx->stream->push_cache_vlts; 
-            cur  = ctx->stream->push_cache_vdelta + h->timestamp;
-            if ( last > cur ){
-                ctx->stream->push_cache_vdelta += ctx->stream->push_cache_vlts;       
-            }
-            timestamp = ctx->stream->push_cache_vdelta + h->timestamp;
-
-            ctx->stream->push_cache_vlts = h->timestamp;
-            ctx->stream->push_cache_vets = timestamp;
-        }
-        */
-        
         last = ctx->stream->push_cache_delta + ctx->stream->push_cache_lts; 
         cur  = ctx->stream->push_cache_delta + h->timestamp;
-        //printf("LLLLL delta:%ld cur-last:%ld\n", ctx->stream->push_cache_delta, h->timestamp-ctx->stream->push_cache_lts);
-        if ( ctx->stream->is_closed_publish && last > cur ){
+        if ( ctx->stream->is_closed_publish ){
             ctx->stream->is_closed_publish = 0;
-            //printf("LLLLL delta:%ld, last:%ld, cur:%d\n", ctx->stream->push_cache_delta, ctx->stream->push_cache_lts, h->timestamp);
-            ctx->stream->push_cache_delta += ctx->stream->push_cache_lts;       
+            if ( last > cur )
+                ctx->stream->push_cache_delta += ctx->stream->push_cache_lts;       
         }
         ctx->stream->push_cache_lts = h->timestamp;
         timestamp = ctx->stream->push_cache_delta + h->timestamp;
-        //printf("LLLLL delta:%ld, h->timestamp:%d, timestamp:%ld\n", ctx->stream->push_cache_delta, h->timestamp, timestamp);
         if (h->type == NGX_RTMP_MSG_AUDIO) {
             ctx->stream->push_cache_aets = timestamp;
         } else {
@@ -1986,7 +1928,6 @@ ngx_rtmp_live_av_to_cache(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
 		    ngx_add_timer(ev, 10);
 
             if( !ctx->stream->is_start_relay ){
-                printf("-r-r-r-r-r-r--r-r-r-r-r-r-r- is_start_relay:%ld\n", ctx->stream->is_start_relay);
                 ctx->stream->is_start_relay = 1;
 
                 ngx_rtmp_stream_relay_publish(ctx->stream, &ctx->stream->publish);
@@ -2175,7 +2116,6 @@ ngx_rtmp_alloc_push_cache_frame(ngx_rtmp_live_stream_t *stream)
     ngx_rtmp_live_push_cache_t  *out, *pch;
     out = pch = stream->idle_cache_head;
     // 如果队列头 不为空则取队头返回, 否则就申请内存
-    // \\ printf("^^^^ alloc_push_cache_frame idle_cache_count %ld\n", stream->idle_cache_count);
     if( pch != NULL ){
         // 移动头到下一个
         if(pch->next != NULL){
@@ -2188,7 +2128,6 @@ ngx_rtmp_alloc_push_cache_frame(ngx_rtmp_live_stream_t *stream)
             stream->idle_cache_tail = NULL;
             stream->idle_cache_count = 0;
         }
-        //printf("^^^^ alloc_push_cache_frame after idle_cache_count %ld\n", stream->idle_cache_count);
     } else {
         out =  ngx_pcalloc(stream->pool, sizeof(ngx_rtmp_live_push_cache_t));
         if( out != NULL ) {
@@ -2215,12 +2154,10 @@ ngx_rtmp_free_push_cache_frame(ngx_rtmp_live_stream_t *stream, ngx_rtmp_live_pus
         stream->idle_cache_head = pc;
         stream->idle_cache_tail = pc;
         stream->idle_cache_count = 1;
-        //printf("$$$$ free_push_cache_frame init idle_cache_count:%ld push_cache_count:%ld\n", stream->idle_cache_count ,stream->push_cache_count);
     } else {
         stream->idle_cache_tail->next = pc;
         stream->idle_cache_tail = pc;
         stream->idle_cache_count += 1;
-        //printf("$$$$ free_push_cache_frame add idle_cache_count:%ld push_cache_count:%ld\n", stream->idle_cache_count, stream->push_cache_count);
     }
     
     ngx_rtmp_free_frame_buffer(stream, pc->frame_buf);
@@ -2618,12 +2555,6 @@ ngx_rtmp_stream_relay_push_reconnect(ngx_event_t *ev)
     ngx_rtmp_relay_reconnect_t     *rrs, **prrs;  
 
     ngx_rtmp_live_stream_t *stream = ev->data;
-    /*
-    if( stream ) {
-        stream->relay_count += 1;
-        return;
-    }
-    */
     
     lacf = stream->lacf;
     
@@ -2656,28 +2587,25 @@ ngx_rtmp_stream_relay_push_reconnect(ngx_event_t *ev)
             continue;
         }
         
+        prrs = &stream->relay_reconnects;  
+        for( ; *prrs ; prrs = &(*prrs)->next ){
+            if ( (*prrs)->target == (ngx_uint_t)target ){
+                (*prrs)->nreconnects += 1;
+                break;
+            }
+        }
+        if( !(*prrs) ){
+            rrs = ngx_pnalloc(stream->pool, sizeof(ngx_rtmp_relay_reconnect_t)); 
+            if( rrs ){
+                rrs->target      = (ngx_uint_t)target;
+                rrs->nreconnects = 1;
+                rrs->next        = NULL;
+                *prrs            = rrs;
+            }
+        }
+            
         //在这里找到对应记录链接的转发次数
         if (ngx_rtmp_stream_relay_push(stream, &ctx->name, target) == NGX_OK) {
-
-            prrs = &stream->relay_reconnects;  
-            for( ; *prrs ; prrs = &(*prrs)->next ){
-                if ( (*prrs)->target == (ngx_uint_t)target ){
-                    (*prrs)->nreconnects += 1;
-                    //printf("LLLLL NNNNN target:%p nreconnects:%ld url:%s\n", (*prrs)->target, (*prrs)->nreconnects, target->url.url.data);
-                    break;
-                }
-            }
-            if( !(*prrs) ){
-                rrs = ngx_pnalloc(stream->pool, sizeof(ngx_rtmp_relay_reconnect_t)); 
-                if( rrs ){
-                    rrs->target      = (ngx_uint_t)target;
-                    rrs->nreconnects = 1;
-                    rrs->next        = NULL;
-                    *prrs            = rrs;
-                    //printf("LLLLL IIIII target:%p nreconnects:%ld url:%s\n", target, rrs->nreconnects, target->url.url.data);
-                }
-            }
-            
             continue;
         }
 
@@ -2700,8 +2628,6 @@ ngx_rtmp_stream_relay_publish(ngx_rtmp_live_stream_t *stream, ngx_rtmp_publish_t
     ngx_rtmp_relay_ctx_t     *ctx;
 
     lacf =  stream->lacf;
-    
-    //printf("############# stream_push_reconnect:%ld\n", lacf->stream_push_reconnect);
     
     if (lacf == NULL || lacf->pushes.nelts == 0) {
         goto next;
@@ -2728,10 +2654,7 @@ ngx_rtmp_stream_relay_publish(ngx_rtmp_live_stream_t *stream, ngx_rtmp_publish_t
 
         ctx = stream->relay_ctx;
         if (ctx && !ctx->push_evt.timer_set) {
-            printf("LLLLL push_evt.timer_set = 0\n");
             ngx_add_timer(&ctx->push_evt, lacf->stream_push_reconnect);
-        } else {
-            printf("LLLLL push_evt.timer_set = 1\n");
         }
     }
 
