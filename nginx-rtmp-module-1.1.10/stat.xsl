@@ -296,27 +296,13 @@
         
         <td><xsl:call-template name="streamstate"/></td>
             
-        <!--cache something-->
         <td>
             <xsl:call-template name="showtime">
                <xsl:with-param name="time" select="cache_len"/>
             </xsl:call-template>
         </td>
-        <!--
-        <td>
-            <xsl:call-template name="showsize">
-               <xsl:with-param name="size" select="cache_len"/>
-           </xsl:call-template>
-        </td>
-        -->
-        <!--
-        <td><xsl:value-of select="cache_len"/></td>
-        <td><xsl:value-of select="cache_vlen"/></td>
-        <td><xsl:value-of select="cache_alen"/></td>
-        -->
         <td><xsl:value-of select="cache_count"/></td>
         <td><xsl:value-of select="nrelays"/></td>
-        <!--cache something-->
     </tr>
 
 
@@ -344,7 +330,8 @@
                     -->
                     <th>A-V</th>
                     <th>Time</th>
-                    <th ngcolor="#6495ED">TC URL</th>
+                    <th>TC URL</th>
+                    <th>#recs</th>
                 </tr>
                 <!--stream 值的获得-->
                 <xsl:apply-templates select="client"/>
@@ -485,6 +472,7 @@
 
         <!--推送地址-->
         <td><xsl:value-of select="tcurl"/></td>
+        <td><xsl:value-of select="nreconnects"/></td>
     </tr>
 </xsl:template>
 

@@ -47,6 +47,8 @@ struct ngx_rtmp_live_ctx_s {
     unsigned                            paused:1;
 
     ngx_uint_t                          newflag;
+
+    void*                               target;  // only use in monitor 
 };
 
 // 添加缓存结构体
@@ -101,6 +103,15 @@ typedef struct {
     ngx_str_t                   tc_url;
 } ngx_rtmp_stream_codec_ctx_t;
 
+typedef struct ngx_rtmp_relay_reconnect_s ngx_rtmp_relay_reconnect_t;
+
+struct ngx_rtmp_relay_reconnect_s {
+    ngx_uint_t                   target;
+    ngx_uint_t                   ntargets;
+    ngx_uint_t                   nreconnects;
+    ngx_rtmp_relay_reconnect_t*  next;
+};
+
 struct ngx_rtmp_live_stream_s {
     u_char                              name[NGX_RTMP_MAX_NAME];
     ngx_rtmp_live_stream_t             *next;
@@ -153,13 +164,24 @@ struct ngx_rtmp_live_stream_s {
     // 监控状态
     ngx_rtmp_stream_codec_ctx_t         codec_ctx;
     ngx_msec_t                          current_time;
-    //ngx_uint_t                          cache_len;
-    ngx_msec_t                          push_cache_alts;   // audio last timestamp 
-    ngx_msec_t                          push_cache_vlts;   // video last timestamp  
-    ngx_msec_t                          push_cache_delta;
+    ngx_msec_t                          push_cache_aets;   // audio end timestamp 
+    ngx_msec_t                          push_cache_vets;   // video end timestamp  
+    ngx_msec_t                          push_cache_lts;   
+    ngx_msec_t                          push_cache_delta;  
+    ngx_flag_t                          is_closed_publish;     // publish is closed 
+    /*
+    ngx_msec_t                          push_cache_alts;   
+    ngx_msec_t                          push_cache_adelta;  
+    ngx_msec_t                          push_cache_vlts;   
+    ngx_msec_t                          push_cache_vdelta;  
+    */
     ngx_uint_t                          ndropped;
     ngx_flag_t                          interleave;
-    ngx_uint_t                          relay_count;
+    ngx_rtmp_relay_reconnect_t*          relay_reconnects;     // 
+    
+    //ngx_uint_t                          relay_count;
+    ngx_flag_t                          is_start_relay; // 是否开始转推
+    ngx_rtmp_publish_t                  publish;
 };
 
 

@@ -391,6 +391,8 @@ ngx_rtmp_stat_client(ngx_http_request_t *r, ngx_chain_t ***lll,
         NGX_RTMP_STAT_L("</tcurl>");
     }
     */
+
+
 }
 static void
 ngx_rtmp_stat_publish(ngx_http_request_t *r, ngx_chain_t ***lll,
@@ -544,20 +546,20 @@ ngx_rtmp_stat_push_cache_json(ngx_http_request_t *r, ngx_chain_t ***lll,
     cache_vlen = 0;
     if(pch && pct){
         cache_len =  pct->frame_pts - pch->frame_pts;
-        
+
         pc = pch;
         while( pc && pc->frame_type != NGX_RTMP_MSG_AUDIO ){
             pc = pc->next;
         }
-        cache_alen = stream->push_cache_alts - pc->frame_pts;
-         
+        cache_alen = stream->push_cache_aets - pc->frame_pts;
+
         pc = pch;
         while( pc && pc->frame_type != NGX_RTMP_MSG_VIDEO ){
             pc = pc->next;
         }
-        cache_vlen = stream->push_cache_vlts - pc->frame_pts;
+        cache_vlen = stream->push_cache_vets - pc->frame_pts;
     }
-    
+
     NGX_RTMP_STAT_L(",\"cache_len\":");
     NGX_RTMP_STAT(buf, ngx_snprintf(buf, sizeof(buf), "%ui",
                   (ngx_uint_t) cache_len) - buf);
@@ -576,7 +578,7 @@ ngx_rtmp_stat_push_cache(ngx_http_request_t *r, ngx_chain_t ***lll, ngx_rtmp_liv
     u_char  buf[NGX_INT_T_LEN];
     ngx_rtmp_live_push_cache_t  *pch, *pct, *pc;
     ngx_uint_t          cache_len, cache_alen, cache_vlen, nrelays;
-    //ngx_rtmp_relay_ctx_t           *rctx;
+    ngx_rtmp_relay_ctx_t           *rctx;
 
     NGX_RTMP_STAT_L("<cache_count>");
     NGX_RTMP_STAT(buf, ngx_snprintf(buf, sizeof(buf), "%ui",
@@ -590,26 +592,22 @@ ngx_rtmp_stat_push_cache(ngx_http_request_t *r, ngx_chain_t ***lll, ngx_rtmp_liv
     cache_vlen = 0;
     nrelays = 0;
     if(pch && pct){
-        cache_len =  pct->frame_pts - pch->frame_pts;
-
         pc = pch;
-        while( pc && pc->frame_type != NGX_RTMP_MSG_AUDIO ){
+        while( pc && (pc->frame_type != NGX_RTMP_MSG_AUDIO || pc->mandatory == 1)){
             pc = pc->next;
         }
-        cache_alen = stream->push_cache_alts - pc->frame_pts;
+        cache_alen = stream->push_cache_aets - pc->frame_pts;
+        //printf("audio push_cache_aets:%ld, start:%ld len:%ld type:%ld\n", stream->push_cache_aets, pc->frame_pts, cache_alen, pc->frame_type);
 
         pc = pch;
-        while( pc && pc->frame_type != NGX_RTMP_MSG_VIDEO ){
+        while( pc && (pc->frame_type != NGX_RTMP_MSG_VIDEO || pc->mandatory == 1)){
             pc = pc->next;
         }
-        cache_vlen = stream->push_cache_vlts - pc->frame_pts;
+        cache_vlen = stream->push_cache_vets - pc->frame_pts;
+        //printf("audio push_cache_vets:%ld, start:%ld len:%ld type:%ld\n", stream->push_cache_vets, pc->frame_pts, cache_vlen, pc->frame_type);
+	
+        cache_len =  cache_alen>cache_vlen?cache_alen:cache_vlen ;
     }
-
-    NGX_RTMP_STAT_L("<cache_len>");
-    NGX_RTMP_STAT(buf, ngx_snprintf(buf, sizeof(buf), "%ui",
-                (ngx_uint_t) cache_len) - buf);
-    NGX_RTMP_STAT_L("</cache_len>");
-
     NGX_RTMP_STAT_L("<cache_alen>");
     NGX_RTMP_STAT(buf, ngx_snprintf(buf, sizeof(buf), "%ui",
                 (ngx_uint_t) cache_alen) - buf);
@@ -619,14 +617,20 @@ ngx_rtmp_stat_push_cache(ngx_http_request_t *r, ngx_chain_t ***lll, ngx_rtmp_liv
     NGX_RTMP_STAT(buf, ngx_snprintf(buf, sizeof(buf), "%ui",
                 (ngx_uint_t) cache_vlen) - buf);
     NGX_RTMP_STAT_L("</cache_vlen>");
-    
-    nrelays = stream->relay_count;
-    /*
-    //for (rctx = stream->relay_ctx->publish->play; rctx; rctx = rctx->next) {
-    for (rctx = stream->relay_ctx->play; rctx; rctx = rctx->next) {
-        nrelays += 1;
+
+    NGX_RTMP_STAT_L("<cache_len>");
+    NGX_RTMP_STAT(buf, ngx_snprintf(buf, sizeof(buf), "%ui",
+                (ngx_uint_t) cache_len) - buf);
+    NGX_RTMP_STAT_L("</cache_len>");
+
+    if( stream && stream->relay_ctx && stream->relay_ctx->play ){
+        //for (rctx = stream->relay_ctx->publish->play; rctx; rctx = rctx->next) {
+        for (rctx = stream->relay_ctx->play; rctx; rctx = rctx->next) {
+            nrelays += 1;
+            //printf("SSSSS RRRRR %ld\n", rctx->nreconnects);
+        }
     }
-    */
+    
     NGX_RTMP_STAT_L("<nrelays>");
     NGX_RTMP_STAT(buf, ngx_snprintf(buf, sizeof(buf),
                 "%ui", nrelays) - buf);
@@ -686,11 +690,13 @@ ngx_rtmp_stat_live(ngx_http_request_t *r, ngx_chain_t ***lll,
     ngx_rtmp_live_ctx_t            *ctx;
     ngx_rtmp_session_t             *s;
     ngx_int_t                       n;
-    ngx_uint_t                      nclients, total_nclients;
+    ngx_uint_t                      nclients, total_nclients, nreconnects;
     u_char                          buf[NGX_INT_T_LEN];
     u_char                          bbuf[NGX_INT32_LEN];
     ngx_rtmp_stat_loc_conf_t       *slcf;
     u_char                         *cname;
+    ngx_rtmp_relay_reconnect_t     *rrs;
+    ngx_rtmp_relay_target_t        *target;
 
     if (!lacf->live) {
         return;
@@ -783,27 +789,50 @@ ngx_rtmp_stat_live(ngx_http_request_t *r, ngx_chain_t ***lll,
                 ++nclients;
 
                 s = ctx->session;
+                
                 if (slcf->stat & NGX_RTMP_STAT_CLIENTS) {
                     NGX_RTMP_STAT_L("<client>");
-                    
+
+                    // 添加转推断开次数
+                    if( s->relay ) {
+                        nreconnects = 0;
+                        rrs = stream->relay_reconnects;
+                        for( ; rrs ; rrs = rrs->next ){
+                            //printf("SSSSS data:%s url:%s, reconnection:%ld\n", s->connection->addr_text.data, target->url.url.data, rrs->nreconnects);
+                            target = (ngx_rtmp_relay_target_t*)rrs->target;
+                            if( target && !ngx_strncmp(s->connection->addr_text.data, target->url.url.data, target->url.url.len) ) {
+                                nreconnects = rrs->nreconnects; 
+                            }
+                        }
+                        NGX_RTMP_STAT_L("<nreconnects>");
+                        NGX_RTMP_STAT(buf, ngx_snprintf(buf, sizeof(buf),
+                                    "%ui", nreconnects) - buf);
+                        NGX_RTMP_STAT_L("</nreconnects>");
+                    }
+
                     // 丢包率
                     NGX_RTMP_STAT_L("<dropped>");
                     NGX_RTMP_STAT(buf, ngx_snprintf(buf, sizeof(buf),
-                                  "%ui", ctx->ndropped) - buf);
+                                "%ui", ctx->ndropped) - buf);
                     NGX_RTMP_STAT_L("</dropped>");
-                    
+
                     // 音视频同步
                     NGX_RTMP_STAT_L("<avsync>");
                     if (!lacf->interleave) {
                         NGX_RTMP_STAT(bbuf, ngx_snprintf(bbuf, sizeof(bbuf),
-                                      "%D", ctx->cs[1].timestamp -
-                                      ctx->cs[0].timestamp) - bbuf);
+                                    "%D", ctx->cs[1].timestamp -
+                                    ctx->cs[0].timestamp) - bbuf);
                     }
                     NGX_RTMP_STAT_L("</avsync>");
 
                     NGX_RTMP_STAT_L("<timestamp>");
                     NGX_RTMP_STAT(bbuf, ngx_snprintf(bbuf, sizeof(bbuf),
-                                  "%D", s->current_time) - bbuf);
+                                "%D", s->current_time) - bbuf);
+                    NGX_RTMP_STAT_L("</timestamp>");
+
+                    NGX_RTMP_STAT_L("<timestamp>");
+                    NGX_RTMP_STAT(bbuf, ngx_snprintf(bbuf, sizeof(bbuf),
+                                "%D", s->current_time) - bbuf);
                     NGX_RTMP_STAT_L("</timestamp>");
 
                     // play or publish
