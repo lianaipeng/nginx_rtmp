@@ -175,8 +175,11 @@ struct ngx_rtmp_live_stream_s {
     ngx_rtmp_relay_reconnect_t*          relay_reconnects;     // 
     
     //ngx_uint_t                          relay_count;
-    ngx_flag_t                          is_start_relay; // 是否开始转推
+    ngx_flag_t                          is_start_relay; // 是否已经开始转推
+    ngx_flag_t                          relay_ctrl;
     ngx_rtmp_publish_t                  publish;
+    
+    ngx_event_t                         wait_relay_event;
 };
 
 
@@ -216,6 +219,10 @@ struct ngx_rtmp_live_app_conf_s{
     ngx_flag_t                  session_relay;
     ngx_msec_t                  push_reconnect;
     ngx_msec_t                  pull_reconnect;
+    
+    ngx_flag_t                  relay_state;   // 是否开启转推 
+    ngx_msec_t                  relay_state_poll_len;  
+    ngx_str_t                   relay_state_file;
 };
 
 
