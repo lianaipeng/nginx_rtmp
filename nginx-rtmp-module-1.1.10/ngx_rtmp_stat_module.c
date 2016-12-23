@@ -576,7 +576,7 @@ static void
 ngx_rtmp_stat_push_cache(ngx_http_request_t *r, ngx_chain_t ***lll, ngx_rtmp_live_stream_t *stream)
 {
     u_char  buf[NGX_INT_T_LEN];
-    ngx_rtmp_live_push_cache_t  *pch, *pct, *pc;
+    ngx_rtmp_live_push_cache_t  *pch, *pc;
     ngx_uint_t          cache_len, cache_alen, cache_vlen, nrelays;
     ngx_rtmp_relay_ctx_t           *rctx;
 
@@ -586,27 +586,28 @@ ngx_rtmp_stat_push_cache(ngx_http_request_t *r, ngx_chain_t ***lll, ngx_rtmp_liv
     NGX_RTMP_STAT_L("</cache_count>");
 
     pch = stream->push_cache_head;
-    pct = stream->push_cache_tail;
     cache_len = 0;
     cache_alen = 0;
     cache_vlen = 0;
     nrelays = 0;
-    if(pch && pct){
+    if( pch ){
         pc = pch;
         while( pc && (pc->frame_type != NGX_RTMP_MSG_AUDIO || pc->mandatory == 1)){
             pc = pc->next;
         }
-        cache_alen = stream->push_cache_aets - pc->frame_pts;
+        if(pc)
+            cache_alen = stream->push_cache_aets - pc->frame_pts;
         //printf("audio push_cache_aets:%ld, start:%ld len:%ld type:%ld\n", stream->push_cache_aets, pc->frame_pts, cache_alen, pc->frame_type);
 
         pc = pch;
         while( pc && (pc->frame_type != NGX_RTMP_MSG_VIDEO || pc->mandatory == 1)){
             pc = pc->next;
         }
-        cache_vlen = stream->push_cache_vets - pc->frame_pts;
+        if(pc)
+            cache_vlen = stream->push_cache_vets - pc->frame_pts;
         //printf("audio push_cache_vets:%ld, start:%ld len:%ld type:%ld\n", stream->push_cache_vets, pc->frame_pts, cache_vlen, pc->frame_type);
-	
-        cache_len =  cache_alen>cache_vlen?cache_alen:cache_vlen ;
+
+        cache_len =  cache_alen>=cache_vlen?cache_alen:cache_vlen ;
     }
     NGX_RTMP_STAT_L("<cache_alen>");
     NGX_RTMP_STAT(buf, ngx_snprintf(buf, sizeof(buf), "%ui",
