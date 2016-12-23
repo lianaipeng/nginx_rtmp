@@ -139,9 +139,9 @@ struct ngx_rtmp_live_stream_s {
     ngx_chain_t                         *free;  // 空闲内存队列
     
     // 时间校验　
-    ngx_uint_t                           push_cache_expts; //end expect time
+    ngx_uint_t                          push_cache_expts; //end expect time
     
-    ngx_event_t                          push_cache_event;
+    ngx_event_t                         push_cache_event;
     
     // 当publish断开之后 才启用这三个参数 否则默认为空
     ngx_rtmp_session_t                  *session;    
@@ -149,7 +149,7 @@ struct ngx_rtmp_live_stream_s {
     ngx_rtmp_core_srv_conf_t            *cscf;
     ngx_rtmp_live_chunk_stream_t        cs[2];
     
-    ngx_uint_t                          closed_count; // 关闭次数
+    ngx_uint_t                          publish_closed_count; // 关闭次数
     ngx_uint_t                          meta_version;
     ngx_chain_t                         *meta; // 不知道是什么
     ngx_chain_t                         *aac_header; // 保存第一次的头
@@ -169,13 +169,12 @@ struct ngx_rtmp_live_stream_s {
     ngx_msec_t                          push_cache_vets;   // video end timestamp  
     ngx_msec_t                          push_cache_lts;   
     ngx_msec_t                          push_cache_delta;  
-    ngx_flag_t                          is_closed_publish;     // publish is closed 
+    ngx_flag_t                          is_publish_closed;     // publish is closed 
     
     ngx_uint_t                          ndropped;
     ngx_flag_t                          interleave;
-    ngx_rtmp_relay_reconnect_t*          relay_reconnects;     // 
-    
-    //ngx_uint_t                          relay_count;
+    ngx_rtmp_relay_reconnect_t*         relay_reconnects;     // 
+     
     ngx_flag_t                          is_relay_start; // 是否开始转推
     ngx_rtmp_publish_t                  publish;
 };

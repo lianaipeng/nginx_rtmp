@@ -597,7 +597,6 @@ ngx_rtmp_stat_push_cache(ngx_http_request_t *r, ngx_chain_t ***lll, ngx_rtmp_liv
         }
         if(pc)
             cache_alen = stream->push_cache_aets - pc->frame_pts;
-        //printf("audio push_cache_aets:%ld, start:%ld len:%ld type:%ld\n", stream->push_cache_aets, pc->frame_pts, cache_alen, pc->frame_type);
 
         pc = pch;
         while( pc && (pc->frame_type != NGX_RTMP_MSG_VIDEO || pc->mandatory == 1)){
@@ -605,7 +604,6 @@ ngx_rtmp_stat_push_cache(ngx_http_request_t *r, ngx_chain_t ***lll, ngx_rtmp_liv
         }
         if(pc)
             cache_vlen = stream->push_cache_vets - pc->frame_pts;
-        //printf("audio push_cache_vets:%ld, start:%ld len:%ld type:%ld\n", stream->push_cache_vets, pc->frame_pts, cache_vlen, pc->frame_type);
 
         cache_len =  cache_alen>=cache_vlen?cache_alen:cache_vlen ;
     }
@@ -790,7 +788,7 @@ ngx_rtmp_stat_live(ngx_http_request_t *r, ngx_chain_t ***lll,
                 ++nclients;
 
                 s = ctx->session;
-                
+                 
                 if (slcf->stat & NGX_RTMP_STAT_CLIENTS) {
                     NGX_RTMP_STAT_L("<client>");
 
@@ -799,7 +797,6 @@ ngx_rtmp_stat_live(ngx_http_request_t *r, ngx_chain_t ***lll,
                         nreconnects = 0;
                         rrs = stream->relay_reconnects;
                         for( ; rrs ; rrs = rrs->next ){
-                            //printf("SSSSS data:%s url:%s, reconnection:%ld\n", s->connection->addr_text.data, target->url.url.data, rrs->nreconnects);
                             target = (ngx_rtmp_relay_target_t*)rrs->target;
                             if( target && !ngx_strncmp(s->connection->addr_text.data, target->url.url.data, target->url.url.len) ) {
                                 nreconnects = rrs->nreconnects; 
