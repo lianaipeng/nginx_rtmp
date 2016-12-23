@@ -30,8 +30,8 @@ function _send()
         COUNT=$((COUNT+1))
         echo "send------ COUNT:$COUNT"
         SLEEP=$(($RANDOM%120))
-        #ffmpeg -re -i "/home/MOMO/downloads/sources/x264long.flv" -vcodec copy -acodec aac -strict -2 -f flv  rtmp://192.168.104.168:1935/myapp/$STREAM >/dev/null  2>&1  &
-        ffmpeg -re -i "/home/MOMO/downloads/sources/x264long.flv" -vcodec copy -acodec aac -strict -2 -f flv  rtmp://101.201.70.93:1935/myapp/$STREAM >/dev/null  2>&1  &
+        ffmpeg -re -i "/home/MOMO/downloads/sources/x264long.flv" -vcodec copy -acodec aac -strict -2 -f flv  rtmp://192.168.104.168:1935/myapp/$STREAM >/dev/null  2>&1  &
+        #ffmpeg -re -i "/home/MOMO/downloads/sources/x264long.flv" -vcodec copy -acodec aac -strict -2 -f flv  rtmp://101.201.70.93:1935/myapp/$STREAM >/dev/null  2>&1  &
         echo "I will sleep $SLEEP second."
         sleep $SLEEP
         

@@ -66,6 +66,7 @@ struct ngx_rtmp_live_push_cache_s{
 }; 
 
 typedef struct {
+    ngx_flag_t                  is_init;
     ngx_uint_t                  width;
     ngx_uint_t                  height;
     ngx_uint_t                  duration;
@@ -156,7 +157,7 @@ struct ngx_rtmp_live_stream_s {
     ngx_chain_t                         *coheader; // 保存第一次的头
     
     ngx_rtmp_relay_ctx_t                *relay_ctx;    //push_realy
-
+    
     void                  **main_conf;
     void                  **srv_conf;
     void                  **app_conf;
@@ -169,7 +170,7 @@ struct ngx_rtmp_live_stream_s {
     ngx_msec_t                          push_cache_lts;   
     ngx_msec_t                          push_cache_delta;  
     ngx_flag_t                          is_closed_publish;     // publish is closed 
-
+    
     ngx_uint_t                          ndropped;
     ngx_flag_t                          interleave;
     ngx_rtmp_relay_reconnect_t*          relay_reconnects;     // 
@@ -198,7 +199,7 @@ struct ngx_rtmp_live_app_conf_s{
     ngx_msec_t                          buflen;
     ngx_pool_t                         *pool;
     ngx_rtmp_live_stream_t             *free_streams;
-
+    
     ngx_flag_t                          push_cache;
     ngx_int_t                           push_cache_time_len;
     ngx_int_t                           push_cache_frame_num;
@@ -216,6 +217,15 @@ struct ngx_rtmp_live_app_conf_s{
     ngx_flag_t                  session_relay;
     ngx_msec_t                  push_reconnect;
     ngx_msec_t                  pull_reconnect;
+
+    // 手动控制转推是否开启
+    ngx_flag_t                  relay_state;   // 是否开启转推 
+    ngx_msec_t                  relay_state_poll_len;  
+    ngx_str_t                   relay_state_file;
+    
+    // 共有事件
+    ngx_flag_t                          relay_ctrl; 
+    ngx_event_t                         wait_relay_event;
 };
 
 
