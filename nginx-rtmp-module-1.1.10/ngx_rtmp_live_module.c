@@ -173,23 +173,23 @@ static ngx_command_t  ngx_rtmp_live_commands[] = {
         0,
         NULL },
 
-    { ngx_string("relay_state"),
+    { ngx_string("relay_cache"),
       NGX_RTMP_MAIN_CONF|NGX_RTMP_SRV_CONF|NGX_RTMP_APP_CONF|NGX_CONF_TAKE1,
       ngx_conf_set_flag_slot,
       NGX_RTMP_APP_CONF_OFFSET,
-      offsetof(ngx_rtmp_live_app_conf_t, relay_state),
+      offsetof(ngx_rtmp_live_app_conf_t, relay_cache),
       NULL },
-    { ngx_string("relay_state_poll_len"),
+    { ngx_string("relay_cache_poll_len"),
         NGX_RTMP_MAIN_CONF|NGX_RTMP_SRV_CONF|NGX_RTMP_APP_CONF|NGX_CONF_TAKE1,
         ngx_conf_set_msec_slot,
         NGX_RTMP_APP_CONF_OFFSET,
-        offsetof(ngx_rtmp_live_app_conf_t, relay_state_poll_len),
+        offsetof(ngx_rtmp_live_app_conf_t, relay_cache_poll_len),
         NULL },
-    { ngx_string("relay_state_file"),
+    { ngx_string("relay_cache_file"),
         NGX_RTMP_MAIN_CONF|NGX_RTMP_SRV_CONF|NGX_RTMP_APP_CONF|NGX_CONF_TAKE1,
         ngx_conf_set_str_slot,
         NGX_RTMP_APP_CONF_OFFSET,
-        offsetof(ngx_rtmp_live_app_conf_t, relay_state_file),
+        offsetof(ngx_rtmp_live_app_conf_t, relay_cache_file),
         NULL  },
     
       ngx_null_command
@@ -260,8 +260,8 @@ ngx_rtmp_live_create_app_conf(ngx_conf_t *cf)
     lacf->stream_push_reconnect = NGX_CONF_UNSET_MSEC;
 
     // 手动开启转推是否开启
-    lacf->relay_state  = NGX_CONF_UNSET;
-    lacf->relay_state_poll_len = NGX_CONF_UNSET_MSEC;
+    lacf->relay_cache  = NGX_CONF_UNSET;
+    lacf->relay_cache_poll_len = NGX_CONF_UNSET_MSEC;
     
 
     return lacf;
@@ -296,7 +296,7 @@ ngx_rtmp_live_merge_app_conf(ngx_conf_t *cf, void *parent, void *child)
 
     // 手动开启转推
     ngx_conf_merge_value(conf->push_cache, prev->push_cache, 0);
-    ngx_conf_merge_msec_value(conf->relay_state_poll_len, prev->relay_state_poll_len, 2000);
+    ngx_conf_merge_msec_value(conf->relay_cache_poll_len, prev->relay_cache_poll_len, 2000);
 
     
     conf->pool = ngx_create_pool(4096, &cf->cycle->new_log);
@@ -717,7 +717,7 @@ ngx_rtmp_live_free_push_cache(ngx_rtmp_live_stream_t *stream)
         ngx_del_timer(ev);
     }
     /* 
-    ev = &stream->wait_relay_event;
+    ev = &stream->relay_cache_event;
     if(ev->timer_set){
         ngx_del_timer(ev);
     }
@@ -1677,24 +1677,32 @@ ngx_rtmp_live_av_dump_cache_frame(ngx_rtmp_live_stream_t *stream)
     return delta;
 }
 
-static void ngx_rtmp_live_check_relay_state(ngx_rtmp_live_stream_t *stream)
+// RELAY_CACHE
+static void 
+ngx_rtmp_live_relay_cache_check(ngx_rtmp_live_stream_t *stream)
 {
-     if( stream->lacf->relay_ctrl ){
-         if( !stream->is_start_relay ){
-             stream->is_start_relay = 1;
-             ngx_rtmp_stream_relay_publish(stream, &stream->publish);
-         }
-     }else{
-         if(stream->is_start_relay)
-         {
-            printf("---------------------------------2\n");
+    if( stream->lacf->relay_cache_ctrl == 1 ){
+        // 首次开始转推
+        if( !stream->is_relay_start ){
+            printf("--------------------------------- relay_open\n");
+            ngx_rtmp_stream_relay_publish(stream, &stream->publish);
+        } 
+        // 缓存释放完毕 还在反复重连
+        /*  // 一下代码有问题
+        else {
+            printf("--------------------------------- no cache close\n");
             ngx_rtmp_stream_relay_close(stream);             
-         }
-         stream->is_start_relay =0;
-     }
+        }*/
+    } else {
+        // 关闭转推
+        if( stream->is_relay_start ){
+            printf("--------------------------------- relay_close\n");
+            ngx_rtmp_stream_relay_close(stream);             
+        }
+    }
 }
 
-// 从缓存中释放数据
+// DUMP_CACHE 从缓存中释放数据
 static void
 nxg_rtmp_live_av_dump_cache(ngx_event_t *ev)
 {
@@ -1703,10 +1711,11 @@ nxg_rtmp_live_av_dump_cache(ngx_event_t *ev)
     ngx_uint_t relts ,expts;
     relts = ngx_rtmp_get_current_time();
     ngx_rtmp_live_stream_t *stream = ev->data;
-    //if( stream )
+    if( !stream || !stream->lacf )
+        return;
      
-    // RELAY             
-    ngx_rtmp_live_check_relay_state(stream);
+    // RELAY_CACHE             
+    ngx_rtmp_live_relay_cache_check(stream);
      
     // 期望到达时间
     expts = stream->push_cache_expts;
@@ -1730,6 +1739,7 @@ nxg_rtmp_live_av_dump_cache(ngx_event_t *ev)
             printf("####dump_cache delta:%ld zeta:%ld delay:%ld\n", delta, zeta, delay);
         }
 
+        // 容错操作
         if(delay > 200) {
             delay = 200;
         }
@@ -1737,16 +1747,16 @@ nxg_rtmp_live_av_dump_cache(ngx_event_t *ev)
         expts = relts + delay; 
         stream->push_cache_expts = expts;
         
-        // 容错操作
         ngx_add_timer(ev, delay); 
     }
     else
     {
+        printf("LLLLL nxg_rtmp_live_av_dump_cache cache is null\n");
         stream->push_cache_lts   = 0;
         stream->push_cache_delta = 0;
-        stream->is_start_relay   = 0;
-         
-        ngx_rtmp_stream_relay_close(stream);
+        
+        // 缓存释放完毕 
+        ngx_rtmp_live_relay_cache_check(stream);
     }
 }
 
@@ -1866,7 +1876,7 @@ ngx_rtmp_stream_publish_header_copy(ngx_rtmp_session_t *s, ngx_rtmp_stream_codec
     }
 }
 
-// 缓存接收到的数据
+// PUSH_CACHE 缓存接收到的数据
 static ngx_int_t 
 ngx_rtmp_live_av_to_cache(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
                  ngx_chain_t *in)
@@ -1970,6 +1980,7 @@ ngx_rtmp_live_av_to_cache(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
         }
     }
     
+    // DUMP_CACHE start     
     pcp = pch;
     ngx_event_t *ev = &ctx->stream->push_cache_event;
     if( !ev->timer_set && mandatory == 0 && pcp && pc){
@@ -1988,38 +1999,44 @@ ngx_rtmp_live_av_to_cache(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
 
 		    ngx_add_timer(ev, 10);
              
-            // REALY             
-            ngx_rtmp_live_check_relay_state(ctx->stream);
+            // RELAY_CACHE
+            ngx_rtmp_live_relay_cache_check(ctx->stream);
 	    }
     }
 	
     return NGX_OK;            
 }
 
+// RELAY_CACHE
 static void 
-nxg_rtmp_live_wait_relay(ngx_event_t *ev){
-    printf("LLLLL nxg_rtmp_live_wait_relay\n");
+nxg_rtmp_live_relay_cache_poll(ngx_event_t *ev)
+{
     if( !ev ){
-        printf("LLLLL nxg_rtmp_live_wait_relay ev is null\n");
+        printf("LLLLL nxg_rtmp_live_relay_cache_poll ev is null\n");
         return;
     }
 
     ngx_rtmp_live_app_conf_t       *lacf;
     ngx_file_t        file;
-    ssize_t           n;
-    u_char           buf[10];
+    ssize_t           n, tn, cn;
+    u_char           tbuf[RELAY_CACHE_FILE_LEN];
+    u_char           cbuf[RELAY_CACHE_FILE_LEN];
     
     lacf = ev->data;
     if( !lacf ){
-        printf("LLLLL nxg_rtmp_live_wait_relay lacf is null\n");
+        printf("LLLLL nxg_rtmp_live_relay_cache_poll lacf is null\n");
         return;
     }
-
-    if(!lacf->relay_state)
-        return;
     
+    // 如果转推关闭 直接退出 
+    if( !lacf->relay_cache )
+        return;
+
+    // 如果转推开启 则需要判断标志文件
+    ngx_memzero(tbuf, sizeof(RELAY_CACHE_FILE_LEN));
+    ngx_memzero(cbuf, sizeof(RELAY_CACHE_FILE_LEN));
     ngx_memzero(&file, sizeof(ngx_file_t));
-    file.name = lacf->relay_state_file;
+    file.name = lacf->relay_cache_file;
     file.log = NULL;
     file.fd = ngx_open_file(file.name.data, NGX_FILE_RDWR,
                             NGX_FILE_OPEN, NGX_FILE_DEFAULT_ACCESS);
@@ -2027,14 +2044,22 @@ nxg_rtmp_live_wait_relay(ngx_event_t *ev){
         printf("LLLLL ngx_open_file NGX_INVALID_FILE\n");
         goto next;
     }
+    
+    n = ngx_read_file(&file, tbuf, RELAY_CACHE_FILE_LEN, 0);
+    tn = 0;
+    cn = 0;
+    // 去除空格
+    while( tbuf[tn] != ';' ){
+        if( tbuf[tn] == '_' || isalpha(tbuf[tn]) )
+            cbuf[cn++] = tbuf[tn];
+        tn++;
+    }
+    cbuf[cn] = '\0';
      
-    n = ngx_read_file(&file, buf, 10, 0);
-    if( n && !ngx_strncmp(buf, "1" ,1) ){
-        lacf->relay_ctrl = 1;
-    } else {
-        lacf->relay_ctrl = 0;
-        
-        //stream->is_start_relay = 1;
+    if( n && !ngx_strncmp(cbuf, "relay_cache_ctrlon" ,18) ){
+        lacf->relay_cache_ctrl = 1;
+    } else if (n && !ngx_strncmp(cbuf, "relay_cache_ctrloff" ,19)) {
+        lacf->relay_cache_ctrl = 0;
     }
     
     if (ngx_close_file(file.fd) == NGX_FILE_ERROR) { 
@@ -2042,7 +2067,7 @@ nxg_rtmp_live_wait_relay(ngx_event_t *ev){
         goto next;
     }
 next:
-    ngx_add_timer(ev, lacf->relay_state_poll_len);
+    ngx_add_timer(ev, lacf->relay_cache_poll_len);
 }
 
 static ngx_int_t
@@ -2065,16 +2090,16 @@ ngx_rtmp_live_av(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
         ngx_add_timer(&ctx->idle_evt, lacf->idle_timeout);
     }
     
-    //ngx_event_t *ev = &ctx->stream->wait_relay_event;
-    // RELAY
-    if ( lacf->relay_state ){
-        ngx_event_t *ev = &lacf->wait_relay_event;
+        
+    // RELAY_CACHE timer register 
+    if ( lacf->relay_cache ){
+        ngx_event_t *ev = &lacf->relay_cache_event;
         if ( !ev->timer_set ){
-            printf("LLLLL init timer set  relay_state_poll_len:%ld, relay_state_file:%s\n", lacf->relay_state_poll_len, lacf->relay_state_file.data);
-            ev->handler = nxg_rtmp_live_wait_relay;
+            printf("LLLLL init timer set  relay_cache_poll_len:%ld, relay_cache_file:%s\n", lacf->relay_cache_poll_len, lacf->relay_cache_file.data);
+            ev->handler = nxg_rtmp_live_relay_cache_poll;
             ev->log = NULL;
             ev->data = lacf;
-            ngx_add_timer(ev, lacf->relay_state_poll_len);
+            ngx_add_timer(ev, lacf->relay_cache_poll_len);
         }
     }
 
@@ -2392,8 +2417,7 @@ ngx_rtmp_free_frame_buffer(ngx_rtmp_live_stream_t *stream, ngx_chain_t *in){
 
 
 
-// RELAY 
-
+// RELAY_CACHE
 static char *
 ngx_rtmp_stream_relay_push_pull(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
@@ -2750,6 +2774,10 @@ ngx_rtmp_stream_relay_publish(ngx_rtmp_live_stream_t *stream, ngx_rtmp_publish_t
 
     ngx_rtmp_relay_ctx_t     *ctx;
 
+    if( !stream )
+        return;
+
+    stream->is_relay_start = 1;
     lacf =  stream->lacf;
     
     if (lacf == NULL || lacf->pushes.nelts == 0) {
@@ -2788,7 +2816,9 @@ next:
 static void ngx_rtmp_stream_relay_close(ngx_rtmp_live_stream_t *stream)
 {
     ngx_rtmp_relay_ctx_t              *ctx, **cctx;
-
+    if( !stream )
+        return;
+    
     ctx = stream->relay_ctx;
     if (ctx == NULL) {
         return;
@@ -2797,6 +2827,8 @@ static void ngx_rtmp_stream_relay_close(ngx_rtmp_live_stream_t *stream)
     if (ctx->publish == NULL) {
         return;
     }
+    
+    stream->is_relay_start = 0;
 
     if (ctx->push_evt.timer_set) {
         ngx_del_timer(&ctx->push_evt);
@@ -2813,7 +2845,7 @@ static void ngx_rtmp_stream_relay_close(ngx_rtmp_live_stream_t *stream)
     stream->relay_ctx = NULL;
 }
 
-// RELAY#######
+// RELAY_CACHE #######
 
 
 // 获取当前时间戳

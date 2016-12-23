@@ -176,7 +176,7 @@ struct ngx_rtmp_live_stream_s {
     ngx_rtmp_relay_reconnect_t*          relay_reconnects;     // 
     
     //ngx_uint_t                          relay_count;
-    ngx_flag_t                          is_start_relay; // 是否开始转推
+    ngx_flag_t                          is_relay_start; // 是否开始转推
     ngx_rtmp_publish_t                  publish;
 };
 
@@ -200,6 +200,7 @@ struct ngx_rtmp_live_app_conf_s{
     ngx_pool_t                         *pool;
     ngx_rtmp_live_stream_t             *free_streams;
     
+    // PUSH_CACHE 推流缓存
     ngx_flag_t                          push_cache;
     ngx_int_t                           push_cache_time_len;
     ngx_int_t                           push_cache_frame_num;
@@ -217,16 +218,16 @@ struct ngx_rtmp_live_app_conf_s{
     ngx_flag_t                  session_relay;
     ngx_msec_t                  push_reconnect;
     ngx_msec_t                  pull_reconnect;
-
-    // 手动控制转推是否开启
-    ngx_flag_t                  relay_state;   // 是否开启转推 
-    ngx_msec_t                  relay_state_poll_len;  
-    ngx_str_t                   relay_state_file;
     
-    // 共有事件
-    ngx_flag_t                          relay_ctrl; 
-    ngx_event_t                         wait_relay_event;
+    // RELAY_CACHE  转推缓存
+    ngx_flag_t                  relay_cache;   // 是否开启转推 
+    ngx_msec_t                  relay_cache_poll_len;   // 手动控制转推 的轮巡时长 
+    ngx_str_t                   relay_cache_file;       // 手动控制转推 的标志文件位置
+    ngx_flag_t                          relay_cache_ctrl; 
+    ngx_event_t                         relay_cache_event;
 };
+
+#define RELAY_CACHE_FILE_LEN 256
 
 
 extern ngx_module_t  ngx_rtmp_live_module;
