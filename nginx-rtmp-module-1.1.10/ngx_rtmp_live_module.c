@@ -1690,14 +1690,13 @@ ngx_rtmp_live_relay_cache_check(ngx_rtmp_live_stream_t *stream)
             printf("--------------------------------- relay_open\n");
             ngx_rtmp_stream_relay_publish(stream, &stream->publish);
         } 
-        // 缓存释放完毕 还在反复重连
-        /*  // 一下代码有问题
-        else {
+        // 缓存释放完毕 关闭转推链接
+        else if ( stream->is_relay_start && !stream->push_cache_head ) {
             printf("--------------------------------- no cache close\n");
             ngx_rtmp_stream_relay_close(stream);             
-        }*/
+        }
     } else {
-        // 关闭转推
+        // 关闭转推(已经开启转推时，关闭)
         if( stream->is_relay_start ){
             printf("--------------------------------- relay_close\n");
             ngx_rtmp_stream_relay_close(stream);             
