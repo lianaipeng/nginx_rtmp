@@ -352,6 +352,8 @@ rtmp_auto_push directive.
 
 ###### 缓存相关配置
     rtmp {
+        # publish 链接空闲5s 就断开
+        drop_idle_publisher 5s;
         server  {
             # 监听端口
             listen 1935;
@@ -359,7 +361,7 @@ rtmp_auto_push directive.
             application myapp {
                 live on;
                 
-                # 缓存功能 开启/关闭
+                # 缓存功能 开启/关闭 (该开关为缓存 总开关)
                 push_cache on;
                 
                 # 延时关闭链接 开启/关闭
@@ -371,6 +373,12 @@ rtmp_auto_push directive.
                 # 缓存帧数 必须大于0
                 push_cache_frame_num 256;
                 
+                # 转推缓存 开启/关闭
+                relay_cache on;
+                # 转推缓存手动控制的标志文件 轮训时长
+                relay_cache_poll_len 3s;
+                # 转推缓存手动控制的标志文件 文件路径和文件名(参数说明跳至文件尾)
+                relay_cache_file /home/MOMO/servers/nginx-1.10.0/sbin/state.txt;
                 # 缓存转推地址 当缓存功能开启时使用，否则:
                 # push 172.16.69.5:1935/live/;
                 stream_push 172.16.69.5:1935/live/;
@@ -383,4 +391,11 @@ rtmp_auto_push directive.
             }
         }
     }
+
+###########
+relay_cache_file文件参数说明:
+格式：relay_cache_ctrl [on|off];
+说明：当relay_cache开启时，会根据relay_cache_poll_len定义的时长，轮询relay_cache_file。如果relay_cache_ctrl on;则开启转推， 否则为关闭。
+      当relay_cache关闭时，转推相关参数不起作用。
+
 
