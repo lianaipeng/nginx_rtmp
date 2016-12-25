@@ -1764,7 +1764,6 @@ nxg_rtmp_live_av_dump_cache(ngx_event_t *ev)
 }
 
 // TO_PLAY
-/*
 static void 
 ngx_rtmp_stream_codec_ctx_copy(ngx_rtmp_codec_ctx_t *codec_ctx, ngx_rtmp_live_stream_t *stream)
 {
@@ -1795,7 +1794,6 @@ ngx_rtmp_stream_codec_ctx_copy(ngx_rtmp_codec_ctx_t *codec_ctx, ngx_rtmp_live_st
    // ngx_uint_t                  meta_version;
    // 
 }
-*/
 
 // STREAM_STATE
 static void 
@@ -1930,14 +1928,14 @@ ngx_rtmp_live_av_to_cache(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
                 ngx_rtmp_is_codec_header(in))
         {
             mandatory = 1;
-            //ngx_rtmp_stream_codec_ctx_copy(codec_ctx, ctx->stream);
+            ngx_rtmp_stream_codec_ctx_copy(codec_ctx, ctx->stream);
         }
     } else {
         if (codec_ctx->video_codec_id == NGX_RTMP_VIDEO_H264 &&
                 ngx_rtmp_is_codec_header(in))
         {
             mandatory = 1;
-            //ngx_rtmp_stream_codec_ctx_copy(codec_ctx, ctx->stream);
+            ngx_rtmp_stream_codec_ctx_copy(codec_ctx, ctx->stream);
         }
     }
 
