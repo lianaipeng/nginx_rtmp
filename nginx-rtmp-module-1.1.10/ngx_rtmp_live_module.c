@@ -665,7 +665,7 @@ ngx_rtmp_live_join(ngx_rtmp_session_t *s, u_char *name, unsigned publisher)
 
     ngx_log_debug1(NGX_LOG_DEBUG_RTMP, s->connection->log, 0,
                    "live: join '%s'", name);
-
+    
     stream = ngx_rtmp_live_get_stream(s, name, publisher || lacf->idle_streams);
 
     if (stream == NULL ||
@@ -708,7 +708,11 @@ ngx_rtmp_live_join(ngx_rtmp_session_t *s, u_char *name, unsigned publisher)
 
     ctx->cs[0].csid = NGX_RTMP_CSID_VIDEO;
     ctx->cs[1].csid = NGX_RTMP_CSID_AUDIO;
-
+    if ( lacf->push_cache ){
+        ctx->stream->cs[0].csid = NGX_RTMP_CSID_VIDEO;
+        ctx->stream->cs[1].csid = NGX_RTMP_CSID_AUDIO;
+    }
+    
     if (!ctx->publishing && (ctx->stream->active || ctx->stream->push_cache_head ) ) {
         ngx_rtmp_live_start(s);
     }
@@ -721,12 +725,6 @@ ngx_rtmp_live_free_push_cache(ngx_rtmp_live_stream_t *stream)
     if(ev->timer_set){
         ngx_del_timer(ev);
     }
-    /* 
-    ev = &stream->relay_cache_event;
-    if(ev->timer_set){
-        ngx_del_timer(ev);
-    }
-    */
 
     // 回收ngx_rtmp_live_push_cache_t中buffer的内存
     ngx_rtmp_live_push_cache_t *pch;
@@ -765,7 +763,7 @@ ngx_rtmp_live_free_push_cache(ngx_rtmp_live_stream_t *stream)
 static ngx_int_t
 ngx_rtmp_live_close_stream(ngx_rtmp_session_t *s, ngx_rtmp_close_stream_t *v)
 {
-    //printf("TTTTT ngx_rtmp_live_close_stream\n");
+    printf("TTTTT ngx_rtmp_live_close_stream\n");
     ngx_rtmp_session_t             *ss;
     ngx_rtmp_live_ctx_t            *ctx, **cctx, *pctx;
     ngx_rtmp_live_stream_t        **stream;
@@ -1572,12 +1570,12 @@ ngx_rtmp_live_av_to_play(ngx_rtmp_live_stream_t *stream, ngx_rtmp_header_t *h,
         
         cs->timestamp += delta;
         ++peers;
-        // STATUS
+        // STATUS   监控输出的数据量
         if ( h->type == NGX_RTMP_MSG_AUDIO ) {
             ++apeers;
         } else {
             ++vpeers;
-        }
+        } 
         ss->current_time = cs->timestamp;
     }
     
@@ -1623,8 +1621,8 @@ ngx_rtmp_live_av_dump_cache_frame(ngx_rtmp_live_stream_t *stream)
         
         // 发送数据
         if ( stream->publish_closed_count == 0 && stream->session != NULL ) {
-            //ngx_rtmp_live_av_to_net(stream->session, &pc->frame_header, pc->frame_buf);
-            ngx_rtmp_live_av_to_play(stream, &pc->frame_header, pc->frame_buf, pc->mandatory);
+            ngx_rtmp_live_av_to_net(stream->session, &pc->frame_header, pc->frame_buf);
+            //ngx_rtmp_live_av_to_play(stream, &pc->frame_header, pc->frame_buf, pc->mandatory);
             // 音视频分离 0/1不分开 
             ngx_uint_t csidx = !(stream->lacf->interleave || pc->frame_header.type == NGX_RTMP_MSG_VIDEO);
             stream->cs[csidx] = stream->ctx->cs[csidx];
@@ -1632,7 +1630,6 @@ ngx_rtmp_live_av_dump_cache_frame(ngx_rtmp_live_stream_t *stream)
             ngx_rtmp_live_av_to_play(stream, &pc->frame_header, pc->frame_buf, pc->mandatory);
             
             if ( pc->has_closed == 1 ){
-                printf("LLLLL ngx_rtmp_live_av_dump_cache_frame pc->has_closed:%ld\n", pc->has_closed);          
                 pc->has_closed = 0;
                 stream->cs[0].timestamp = 0;
                 stream->cs[1].timestamp = 0;
@@ -1895,7 +1892,7 @@ ngx_rtmp_live_av_to_cache(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
                 "live: %s from non-publisher", type_s);
         return NGX_OK;
     }
-    
+     
     // 数据流是否激活 如果没有则激活 
     if (!ctx->stream->active) {
         ngx_rtmp_live_start(s);
@@ -1913,10 +1910,8 @@ ngx_rtmp_live_av_to_cache(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
      
     mandatory = 0;
 
-     
     prio = (h->type == NGX_RTMP_MSG_VIDEO ?
             ngx_rtmp_get_video_frame_type(in) : 0);
-     
     cscf = ngx_rtmp_get_module_srv_conf(s, ngx_rtmp_core_module);
      
     ctx->stream->session      = s;
