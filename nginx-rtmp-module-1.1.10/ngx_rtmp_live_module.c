@@ -763,7 +763,7 @@ ngx_rtmp_live_free_push_cache(ngx_rtmp_live_stream_t *stream)
 static ngx_int_t
 ngx_rtmp_live_close_stream(ngx_rtmp_session_t *s, ngx_rtmp_close_stream_t *v)
 {
-    printf("TTTTT ngx_rtmp_live_close_stream\n");
+    //printf("TTTTT ngx_rtmp_live_close_stream\n");
     ngx_rtmp_session_t             *ss;
     ngx_rtmp_live_ctx_t            *ctx, **cctx, *pctx;
     ngx_rtmp_live_stream_t        **stream;
@@ -1517,9 +1517,7 @@ ngx_rtmp_live_av_to_play(ngx_rtmp_live_stream_t *stream, ngx_rtmp_header_t *h,
         }
 
         if (!cs->active) {
-            if( mandatory )
-            {
-                printf("mandatory  is %ld  continue\n",mandatory);
+            if( mandatory ) {
                 continue;
             }
 
@@ -1529,7 +1527,7 @@ ngx_rtmp_live_av_to_play(ngx_rtmp_live_stream_t *stream, ngx_rtmp_header_t *h,
                         apkt = ngx_rtmp_append_shared_bufs(cscf, NULL, stream->aac_header);
                         ngx_rtmp_prepare_message_with_cache(stream, &lh, NULL, apkt);
                     }
-
+                    
                     rc = ngx_rtmp_send_message(ss, apkt, 0);
                     if (rc != NGX_OK) {
                         printf("aac send fail\n");
@@ -1540,7 +1538,7 @@ ngx_rtmp_live_av_to_play(ngx_rtmp_live_stream_t *stream, ngx_rtmp_header_t *h,
                         apkt = ngx_rtmp_append_shared_bufs(cscf, NULL, stream->avc_header);
                         ngx_rtmp_prepare_message_with_cache(stream, &lh, NULL, apkt);
                     }
-
+                    
                     rc = ngx_rtmp_send_message(ss, apkt, 0);
                     if (rc != NGX_OK) {
                         printf("avc send fail\n");
@@ -1548,7 +1546,7 @@ ngx_rtmp_live_av_to_play(ngx_rtmp_live_stream_t *stream, ngx_rtmp_header_t *h,
                     }
                 }
             }
-
+            
             cs->timestamp = lh.timestamp;
             cs->active = 1;
             ss->current_time = cs->timestamp;
@@ -1931,7 +1929,6 @@ ngx_rtmp_live_av_to_cache(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
             // ADDD 
             header = codec_ctx->aac_header;
             if( !ctx->stream->aac_header && header ) {
-                printf("LLLLL ngx_rtmp_live_av_to_cache aac_header\n");
                 ctx->stream->aac_header = ngx_rtmp_append_data_to_push_cache(cscf->chunk_size, ctx->stream, NULL, header);
             }
         } else {
@@ -1945,14 +1942,12 @@ ngx_rtmp_live_av_to_cache(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
             // ADDD
             header = codec_ctx->avc_header;
             if( !ctx->stream->avc_header && header ){
-                printf("LLLLL ngx_rtmp_live_av_to_cache avc_header\n");
                 ctx->stream->avc_header = ngx_rtmp_append_data_to_push_cache(cscf->chunk_size, ctx->stream, NULL, header);
             } 
         }
            
         // ADDD 
         if(  codec_ctx->meta && !ctx->stream->meta ){
-            printf("LLLLL ngx_rtmp_live_av_to_cache meta\n");
             ctx->stream->meta = ngx_rtmp_append_data_to_push_cache(cscf->chunk_size, ctx->stream, NULL, codec_ctx->meta);
             // 版本信息 初始化0
             ctx->stream->meta_version = codec_ctx->meta_version;
