@@ -1578,7 +1578,7 @@ ngx_rtmp_live_av_to_play(ngx_rtmp_live_stream_t *stream, ngx_rtmp_header_t *h,
         }
         
         cs->timestamp += delta;
-        // STATUS   监控输出的数据量
+        // STREAM_STATE   监控输出的数据量
         ++peers;
         if ( h->type == NGX_RTMP_MSG_AUDIO ) {
             ++apeers;
@@ -2153,7 +2153,6 @@ ngx_rtmp_live_av(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
     
     // STREAM_STATE  publish状态详情（兼容publish断开时显示）
     if( !ctx->stream->codec_ctx.is_init ) {
-        //printf("LLLLL ngx_rtmp_live_av ctx->stream->codec_ctx\n");
         ngx_rtmp_stream_publish_header_copy(s, &ctx->stream->codec_ctx, ctx->stream, lacf->push_cache);
     }
     // STREAM_STATE  输入的数据大小    
