@@ -1112,7 +1112,7 @@ ngx_rtmp_stat_live_json(ngx_http_request_t *r, ngx_chain_t ***lll,
     ngx_uint_t                      nstreams, nclients, total_nclients;
     u_char                          buf[NGX_INT_T_LEN];
     u_char                          bbuf[NGX_INT32_LEN];
-    ngx_rtmp_stat_loc_conf_t       *slcf;
+    //ngx_rtmp_stat_loc_conf_t       *slcf;
     u_char                         *cname;
     ngx_rtmp_relay_ctx_t           *rctx;
     ngx_uint_t                      nrelays;
@@ -1121,7 +1121,7 @@ ngx_rtmp_stat_live_json(ngx_http_request_t *r, ngx_chain_t ***lll,
         return;
     }
 
-    slcf = ngx_http_get_module_loc_conf(r, ngx_rtmp_stat_module);
+    //slcf = ngx_http_get_module_loc_conf(r, ngx_rtmp_stat_module);
 
     total_nclients = 0;
     nstreams = 0;

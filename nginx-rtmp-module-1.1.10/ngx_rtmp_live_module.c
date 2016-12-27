@@ -1445,7 +1445,7 @@ ngx_rtmp_live_av_to_play(ngx_rtmp_live_stream_t *stream, ngx_rtmp_header_t *h,
     ngx_rtmp_live_ctx_t            *pctx;
     ngx_rtmp_session_t             *ss;
     ngx_rtmp_live_chunk_stream_t   *cs;
-    ngx_rtmp_header_t               ch, lh, clh;
+    ngx_rtmp_header_t               ch, lh;//, clh;
     ngx_chain_t                    *rpkt;
     uint32_t                        delta;
     ngx_uint_t                      csidx;
@@ -1455,13 +1455,13 @@ ngx_rtmp_live_av_to_play(ngx_rtmp_live_stream_t *stream, ngx_rtmp_header_t *h,
     cscf = stream->cscf;
     lacf = stream->lacf;   /////////////////////////+
     
-    ngx_chain_t                    *apkt, *acopkt;
+    ngx_chain_t                    *apkt;//, *acopkt;
     ngx_uint_t                      prio;
     ngx_uint_t                      peers, apeers, vpeers;
     ngx_int_t                       rc;
     
     apkt = NULL;
-    acopkt = NULL;
+    //acopkt = NULL;
     peers = 0;
     apeers = 0;
     vpeers = 0;
@@ -1486,9 +1486,11 @@ ngx_rtmp_live_av_to_play(ngx_rtmp_live_stream_t *stream, ngx_rtmp_header_t *h,
     // last header  current header
     lh = ch;
     
+    /*
     clh = lh;
     clh.type = (h->type == NGX_RTMP_MSG_AUDIO ? NGX_RTMP_MSG_VIDEO :
                                                 NGX_RTMP_MSG_AUDIO);
+    */
     //  不知道干啥用 
     if ( cs->active ) {
         lh.timestamp = cs->timestamp;
