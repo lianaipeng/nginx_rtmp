@@ -53,6 +53,8 @@ static void
 ngx_rtmp_stream_relay_close(ngx_rtmp_live_stream_t *stream);
 static void 
 nxg_rtmp_live_relay_cache_poll(ngx_event_t *ev);
+static void 
+ngx_rtmp_stream_codec_ctx_copy(ngx_rtmp_codec_ctx_t *codec_ctx, ngx_rtmp_live_stream_t *stream);
 
 
 
@@ -372,7 +374,7 @@ ngx_rtmp_live_get_stream(ngx_rtmp_session_t *s, u_char *name, int create)
     } else {
         *stream = ngx_palloc(lacf->pool, sizeof(ngx_rtmp_live_stream_t));
     }
-    printf("LLLLL ngx_rtmp_live_get_stream stream:%p\n", stream);
+    //printf("LLLLL ngx_rtmp_live_get_stream stream:%p\n", stream);
     
     ngx_memzero(*stream, sizeof(ngx_rtmp_live_stream_t));
     ngx_memcpy((*stream)->name, name,
@@ -1052,6 +1054,9 @@ ngx_rtmp_live_av_to_net(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
                 prio = 0;
                 mandatory = 1;
             }
+                     
+            // STREAM_STATE 
+            ngx_rtmp_stream_codec_ctx_copy(codec_ctx, ctx->stream);
         // 视频头
         } else {
             header = codec_ctx->avc_header;
@@ -1066,6 +1071,9 @@ ngx_rtmp_live_av_to_net(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
                 prio = 0;
                 mandatory = 1;
             }
+               
+            // STREAM_STATE 
+            ngx_rtmp_stream_codec_ctx_copy(codec_ctx, ctx->stream);
         }
         
         // 第一个发送的包  数据头 
@@ -1073,6 +1081,9 @@ ngx_rtmp_live_av_to_net(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
             meta = codec_ctx->meta;
             // 版本信息 初始化0
             meta_version = codec_ctx->meta_version;
+            
+            // STREAM_STATE
+            ctx->stream->meta_version = codec_ctx->meta_version;
         }
     }
     
@@ -1266,12 +1277,12 @@ ngx_rtmp_live_av_to_net(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
     }
 
     ngx_rtmp_update_bandwidth(&ctx->stream->bw_in, h->mlen);
-    ngx_rtmp_update_bandwidth(&ctx->stream->bw_out, h->mlen * peers);
-
     ngx_rtmp_update_bandwidth(h->type == NGX_RTMP_MSG_AUDIO ?
                               &ctx->stream->bw_in_audio :
                               &ctx->stream->bw_in_video,
                               h->mlen);
+
+    ngx_rtmp_update_bandwidth(&ctx->stream->bw_out, h->mlen * peers);
     ngx_rtmp_update_bandwidth(h->type == NGX_RTMP_MSG_AUDIO ?
                               &ctx->stream->bw_out_audio :
                               &ctx->stream->bw_out_video,
@@ -1567,8 +1578,8 @@ ngx_rtmp_live_av_to_play(ngx_rtmp_live_stream_t *stream, ngx_rtmp_header_t *h,
         }
         
         cs->timestamp += delta;
-        ++peers;
         // STATUS   监控输出的数据量
+        ++peers;
         if ( h->type == NGX_RTMP_MSG_AUDIO ) {
             ++apeers;
         } else {
@@ -1584,6 +1595,12 @@ ngx_rtmp_live_av_to_play(ngx_rtmp_live_stream_t *stream, ngx_rtmp_header_t *h,
     if (apkt) {
         ngx_rtmp_free_shared_chain(cscf, apkt);
     }
+
+    ngx_rtmp_update_bandwidth(&stream->bw_in, h->mlen);
+    ngx_rtmp_update_bandwidth(h->type == NGX_RTMP_MSG_AUDIO ?
+                              &stream->bw_in_audio :
+                              &stream->bw_in_video,
+                              h->mlen);
 
     ngx_rtmp_update_bandwidth(&stream->bw_out, h->mlen * peers);
     ngx_rtmp_update_bandwidth(h->type == NGX_RTMP_MSG_AUDIO ?
@@ -1727,7 +1744,7 @@ nxg_rtmp_live_av_dump_cache(ngx_event_t *ev)
     }
 }
 
-// TO_PLAY
+// TO_PLAY  STREAM_STATE
 static void 
 ngx_rtmp_stream_codec_ctx_copy(ngx_rtmp_codec_ctx_t *codec_ctx, ngx_rtmp_live_stream_t *stream)
 {
@@ -1796,7 +1813,7 @@ ngx_rtmp_stream_publish_header_copy(ngx_rtmp_session_t *s, ngx_rtmp_stream_codec
         pool = stream->pool;  
     else 
         pool = s->connection->pool;
-    
+     
     if( s->connection->addr_text.len ){
         p = ngx_pnalloc(pool, s->connection->addr_text.len); 
         ngx_memcpy(p, 
@@ -1864,9 +1881,9 @@ ngx_rtmp_live_av_to_cache(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
     meta = NULL;
     
 #ifdef NGX_DEBUG
-        const char                     *type_s;
+    const char                     *type_s;
 
-            type_s = (h->type == NGX_RTMP_MSG_VIDEO ? "video" : "audio");
+    type_s = (h->type == NGX_RTMP_MSG_VIDEO ? "video" : "audio");
 #endif
 
     lacf = ngx_rtmp_get_module_app_conf(s, ngx_rtmp_live_module);
@@ -1923,12 +1940,12 @@ ngx_rtmp_live_av_to_cache(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
                     ngx_rtmp_is_codec_header(in))
             {
                 mandatory = 1;
-                ngx_rtmp_stream_codec_ctx_copy(codec_ctx, ctx->stream);
             }
-            
+            ngx_rtmp_stream_codec_ctx_copy(codec_ctx, ctx->stream);
+
             // ADDD 
             header = codec_ctx->aac_header;
-            if( !ctx->stream->aac_header && header ) {
+            if ( !ctx->stream->aac_header && header ) {
                 ctx->stream->aac_header = ngx_rtmp_append_data_to_push_cache(cscf->chunk_size, ctx->stream, NULL, header);
             }
         } else {
@@ -1936,12 +1953,12 @@ ngx_rtmp_live_av_to_cache(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
                     ngx_rtmp_is_codec_header(in))
             {
                 mandatory = 1;
-                ngx_rtmp_stream_codec_ctx_copy(codec_ctx, ctx->stream);
             }
+            ngx_rtmp_stream_codec_ctx_copy(codec_ctx, ctx->stream);
                
             // ADDD
             header = codec_ctx->avc_header;
-            if( !ctx->stream->avc_header && header ){
+            if ( !ctx->stream->avc_header && header ){
                 ctx->stream->avc_header = ngx_rtmp_append_data_to_push_cache(cscf->chunk_size, ctx->stream, NULL, header);
             } 
         }
@@ -1953,7 +1970,7 @@ ngx_rtmp_live_av_to_cache(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
             ctx->stream->meta_version = codec_ctx->meta_version;
         }
     }
-
+    
     timestamp = 0;
     if ( mandatory == 0 ) {
         // 如果推流中间断开过，保证时间戳单调递增
@@ -1982,14 +1999,14 @@ ngx_rtmp_live_av_to_cache(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
     pc->frame_header = *h;
     pc->next = NULL;  
     // ############### 缓存数据
-       
+     
     pch = ctx->stream->push_cache_head;
     pct = ctx->stream->push_cache_tail;
     if(pch == NULL){
         ctx->stream->push_cache_head = pc;
         ctx->stream->push_cache_tail = pc;
         ctx->stream->push_cache_count = 1;
-
+        
         ctx->stream->lacf    = lacf;
         ctx->stream->cscf    = cscf;
     } else {
@@ -2094,39 +2111,6 @@ next:
     ngx_add_timer(ev, lacf->relay_cache_poll_len);
 }
 
-/*
-static void 
-ngx_rtmp_live_av_copy_codec_ctx(ngx_rtmp_session_t *s, ngx_rtmp_live_ctx_t *ctx)
-{
-    // PUSH_CACHE
-    ngx_chain_t                    *header, *meta;
-    header = NULL;
-    meta = NULL;
-    ngx_rtmp_codec_ctx_t           *codec_ctx;
-    
-    codec_ctx = ngx_rtmp_get_module_ctx(s, ngx_rtmp_codec_module);
-
-    if (codec_ctx) {
-        // 音频头 
-        if (h->type == NGX_RTMP_MSG_AUDIO) {
-            header = codec_ctx->aac_header;
-            if( !ctx->stream->aac_header && header) {
-                ctx->stream->aac_header = ngx_rtmp_append_data_to_push_cache(cscf->chunk_size, ctx->stream, NULL, header);
-            }
-        }else{
-            header = codec_ctx->avc_header;
-            if(!ctx->stream->avc_header && header){
-                ctx->stream->avc_header = ngx_rtmp_append_data_to_push_cache(cscf->chunk_size, ctx->stream, NULL, header);
-            } 
-        }
-        meta = codec_ctx->meta;
-        if(!ctx->stream->meta && meta){
-            ctx->stream->meta = ngx_rtmp_append_data_to_push_cache(cscf->chunk_size, ctx->stream, NULL, meta);
-            ctx->stream->meta_version = meta_version;
-        }
-    }
-}
-*/
 static ngx_int_t
 ngx_rtmp_live_av(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
                  ngx_chain_t *in)
@@ -2159,7 +2143,6 @@ ngx_rtmp_live_av(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
         }
     }
     
-        
             
     if( lacf->push_cache ){
         ret = ngx_rtmp_live_av_to_cache(s, h, in);
@@ -2170,6 +2153,7 @@ ngx_rtmp_live_av(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
     
     // STREAM_STATE  publish状态详情（兼容publish断开时显示）
     if( !ctx->stream->codec_ctx.is_init ) {
+        //printf("LLLLL ngx_rtmp_live_av ctx->stream->codec_ctx\n");
         ngx_rtmp_stream_publish_header_copy(s, &ctx->stream->codec_ctx, ctx->stream, lacf->push_cache);
     }
     // STREAM_STATE  输入的数据大小    
