@@ -1645,7 +1645,7 @@ ngx_rtmp_live_av_dump_cache_frame(ngx_rtmp_live_stream_t *stream)
             stream->cs[csidx] = stream->ctx->cs[csidx];
         } else {
             ngx_rtmp_live_av_to_play(stream, &pc->frame_header, pc->frame_buf, pc->mandatory);
-            
+                 
             if ( pc->has_closed == 1 ){
                 pc->has_closed = 0;
                 stream->cs[0].timestamp = 0;
@@ -1878,9 +1878,8 @@ ngx_rtmp_live_av_to_cache(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
     ngx_rtmp_codec_ctx_t           *codec_ctx;
     ngx_int_t                       mandatory;
     ngx_msec_t                      timestamp, last ,cur;
-    ngx_chain_t                    *header, *meta;
+    ngx_chain_t                    *header;
     header = NULL;
-    meta = NULL;
     
 #ifdef NGX_DEBUG
     const char                     *type_s;
@@ -2028,16 +2027,18 @@ ngx_rtmp_live_av_to_cache(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
 	    while( pcp->mandatory == 1 ){
 		    pcp = pcp->next;
 	    };
-
+        if( !pcp )
+            return NGX_OK;
+            
 	    if( (pcp->frame_type == pc->frame_type) && (pc->frame_pts-pcp->frame_pts >= lacf->push_cache_time_len-10) ){
 		    ev->handler = nxg_rtmp_live_av_dump_cache;
 		    ev->log = NULL;
 		    ev->data = ctx->stream;
-
+            
 		    ngx_uint_t relts = ngx_rtmp_get_current_time();
 		    relts += 10;
 		    ctx->stream->push_cache_expts = relts;
-
+            
 		    ngx_add_timer(ev, 10);
              
             // RELAY_CACHE
