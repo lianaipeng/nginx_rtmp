@@ -132,24 +132,26 @@ struct ngx_rtmp_live_stream_s {
     ngx_msec_t                          epoch;
     unsigned                            active:1;
     unsigned                            publishing:1;
-        
+    
+    // 缓存    
     ngx_rtmp_live_push_cache_t          *push_cache_head;
     ngx_rtmp_live_push_cache_t          *push_cache_tail;
     ngx_int_t                            push_cache_count;
 
-    ngx_rtmp_live_push_cache_t          *idle_cache_head; // 空闲队列 
+    //   空闲队列 
+    ngx_rtmp_live_push_cache_t          *idle_cache_head;  
     ngx_rtmp_live_push_cache_t          *idle_cache_tail;
     ngx_int_t                            idle_cache_count;
     
-    ngx_pool_t                          *pool;  // 缓存池
+    ngx_pool_t                          *pool;  // 内存池
     ngx_chain_t                         *free;  // 空闲内存队列
     
-    // 时间校验　
+    //   时间校验　
     ngx_uint_t                          push_cache_expts; //end expect time
-    // 释放缓存时间事件 
+    //   释放缓存时间事件 
     ngx_event_t                         push_cache_event;
     
-    // 当publish断开之后 才启用这三个参数 否则默认为空
+    //   当publish断开之后 才启用这三个参数 否则默认为空
     ngx_rtmp_session_t                  *session;    
     ngx_rtmp_live_app_conf_t            *lacf;
     ngx_rtmp_core_srv_conf_t            *cscf;
