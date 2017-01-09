@@ -87,6 +87,12 @@ typedef struct {
     ngx_uint_t                  sample_rate;    /* 5512, 11025, 22050, 44100 */
     ngx_uint_t                  sample_size;    /* 1=8bit, 2=16bit */
     ngx_uint_t                  audio_channels; /* 1, 2 */
+    
+    // to_play 使用
+    ngx_chain_t                 *aac_header; // 保存第一次的音频头
+    ngx_chain_t                 *avc_header; // 保存第一次的视频头
+    ngx_chain_t                 *meta;       // 保存视频信息
+    ngx_uint_t                  meta_version;
     /*
     u_char                      profile[32];
     u_char                      level[32];
@@ -140,7 +146,7 @@ struct ngx_rtmp_live_stream_s {
     
     // 时间校验　
     ngx_uint_t                          push_cache_expts; //end expect time
-    
+    // 释放缓存时间事件 
     ngx_event_t                         push_cache_event;
     
     // 当publish断开之后 才启用这三个参数 否则默认为空
@@ -148,22 +154,23 @@ struct ngx_rtmp_live_stream_s {
     ngx_rtmp_live_app_conf_t            *lacf;
     ngx_rtmp_core_srv_conf_t            *cscf;
     ngx_rtmp_live_chunk_stream_t        cs[2];
-    
-    ngx_uint_t                          publish_closed_count; // 关闭次数
-    ngx_uint_t                          meta_version;
-    ngx_chain_t                         *meta; // 不知道是什么
-    ngx_chain_t                         *aac_header; // 保存第一次的头
-    ngx_chain_t                         *avc_header; // 保存第一次的头
-    ngx_chain_t                         *coheader; // 保存第一次的头
-    
-    ngx_rtmp_relay_ctx_t                *relay_ctx;    //push_realy
-    
-    void                  **main_conf;
-    void                  **srv_conf;
-    void                  **app_conf;
-    
-    // 监控状态
+    ngx_uint_t                          publish_closed_count;  // publish关闭次数
+    // 视音频头 meta
     ngx_rtmp_stream_codec_ctx_t         codec_ctx;
+    
+    
+    //push_realy
+    ngx_rtmp_relay_ctx_t                *relay_ctx;    
+    void                                **main_conf;
+    void                                **srv_conf;
+    void                                **app_conf;
+    ngx_flag_t                          is_relay_start; // 是否已经开始转推
+    ngx_rtmp_relay_reconnect_t*         relay_reconnects;     // 
+     
+    ngx_rtmp_publish_t                  publish;
+    
+
+    // 监控状态
     ngx_msec_t                          current_time;
     ngx_msec_t                          push_cache_aets;   // audio end timestamp 
     ngx_msec_t                          push_cache_vets;   // video end timestamp  
@@ -173,10 +180,6 @@ struct ngx_rtmp_live_stream_s {
     
     ngx_uint_t                          ndropped;
     ngx_flag_t                          interleave;
-    ngx_rtmp_relay_reconnect_t*         relay_reconnects;     // 
-     
-    ngx_flag_t                          is_relay_start; // 是否开始转推
-    ngx_rtmp_publish_t                  publish;
 };
 
 
