@@ -164,6 +164,12 @@ static ngx_command_t  ngx_rtmp_live_commands[] = {
       NGX_RTMP_APP_CONF_OFFSET,
       offsetof(ngx_rtmp_live_app_conf_t, publish_delay_close),
       NULL },
+    { ngx_string("publish_delay_close_len"),
+      NGX_RTMP_MAIN_CONF|NGX_RTMP_SRV_CONF|NGX_RTMP_APP_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_msec_slot,
+      NGX_RTMP_APP_CONF_OFFSET,
+      offsetof(ngx_rtmp_live_app_conf_t, publish_delay_close_len),
+      NULL },
     { ngx_string("stream_push_reconnect"),
         NGX_RTMP_MAIN_CONF|NGX_RTMP_SRV_CONF|NGX_RTMP_APP_CONF|NGX_CONF_TAKE1,
         ngx_conf_set_msec_slot,
@@ -258,6 +264,7 @@ ngx_rtmp_live_create_app_conf(ngx_conf_t *cf)
     lacf->push_cache_time_len = NGX_CONF_UNSET;
     lacf->push_cache_frame_num = NGX_CONF_UNSET;
     lacf->publish_delay_close = NGX_CONF_UNSET;
+    lacf->publish_delay_close_len = NGX_CONF_UNSET;
     
 
     lacf->push_reconnect = NGX_CONF_UNSET_MSEC;
@@ -295,6 +302,7 @@ ngx_rtmp_live_merge_app_conf(ngx_conf_t *cf, void *parent, void *child)
     ngx_conf_merge_value(conf->push_cache_time_len, prev->push_cache_time_len, 10000);
     ngx_conf_merge_value(conf->push_cache_frame_num, prev->push_cache_frame_num, 250);
     ngx_conf_merge_value(conf->publish_delay_close, prev->publish_delay_close, 0);
+    ngx_conf_merge_msec_value(conf->publish_delay_close_len, prev->publish_delay_close_len, 3000);
     
     ngx_conf_merge_msec_value(conf->stream_push_reconnect, prev->stream_push_reconnect, 3000);
 
@@ -367,7 +375,6 @@ ngx_rtmp_live_get_stream(ngx_rtmp_session_t *s, u_char *name, int create)
     ngx_log_debug1(NGX_LOG_DEBUG_RTMP, s->connection->log, 0,
             "live: create stream '%s'", name);
 
-    // PUSH_CACHE
     if (lacf->free_streams) {
         *stream = lacf->free_streams;
         lacf->free_streams = lacf->free_streams->next;
@@ -379,17 +386,10 @@ ngx_rtmp_live_get_stream(ngx_rtmp_session_t *s, u_char *name, int create)
     ngx_memcpy((*stream)->name, name,
             ngx_min(sizeof((*stream)->name) - 1, len));
     (*stream)->epoch = ngx_current_msec;
-    (*stream)->is_publish_closed = 0;
     
     // 有队列情况下 修改内存池
     ngx_log_error(NGX_LOG_INFO, s->connection->log, 0, "push_cache:%d push_cache_time_len:%L push_cache_frame_num:%d", lacf->push_cache, lacf->push_cache_time_len, lacf->push_cache_frame_num);
-    
-    // PUSH_CACHE 添加内存池
-    if( lacf->push_cache ){
-        (*stream)->pool = ngx_create_pool(4096, NULL);
-    }
-    // end
-    
+
     return stream;
 }
 
@@ -710,6 +710,10 @@ ngx_rtmp_live_join(ngx_rtmp_session_t *s, u_char *name, unsigned publisher)
     ctx->cs[0].csid = NGX_RTMP_CSID_VIDEO;
     ctx->cs[1].csid = NGX_RTMP_CSID_AUDIO;
     if ( lacf->push_cache ){
+        ctx->stream->session = s;
+        ctx->stream->lacf = lacf;
+        ctx->stream->cscf  = ngx_rtmp_get_module_srv_conf(s, ngx_rtmp_core_module);
+
         ctx->stream->cs[0].csid = NGX_RTMP_CSID_VIDEO;
         ctx->stream->cs[1].csid = NGX_RTMP_CSID_AUDIO;
     }
@@ -718,13 +722,28 @@ ngx_rtmp_live_join(ngx_rtmp_session_t *s, u_char *name, unsigned publisher)
         ngx_rtmp_live_start(s);
     }
 }
+
+
 static void  
 ngx_rtmp_live_free_push_cache(ngx_rtmp_live_stream_t *stream)
 {
-    printf("LLLLL ngx_rtmp_live_free_push_cache\n");
+    //printf("LLLLL ngx_rtmp_live_free_push_cache\n");
+    ngx_rtmp_live_stream_t         **pstream;
+    ngx_rtmp_live_app_conf_t       *lacf;
+    size_t                      len;
+    lacf = stream->lacf;
+    if( !stream || !stream->lacf ) {
+        return;
+    }
+
     // 删除定时器 
     ngx_event_t *ev = &stream->push_cache_event;
-    if(ev->timer_set){
+    if( ev && ev->timer_set ){
+        ngx_del_timer(ev);
+    }
+       
+    ev = &stream->delay_close_event;
+    if( ev && ev->timer_set ){
         ngx_del_timer(ev);
     }
 
@@ -756,10 +775,53 @@ ngx_rtmp_live_free_push_cache(ngx_rtmp_live_stream_t *stream)
         ngx_destroy_pool(stream->pool);
         stream->pool = NULL;
     }
-
+    
+    // 清空codec_ctx
+    stream->codec_ctx.is_init = 0; 
+     
+    // 释放stream结构体 
+    len = ngx_strlen(stream->name);
+    pstream = &lacf->streams[ngx_hash_key(stream->name, len) % lacf->nbuckets];
+    for (; *pstream; pstream = &(*pstream)->next) {
+        if (ngx_strcmp(stream->name, (*pstream)->name) == 0) {
+            break;
+        }
+    }
+    if ( !pstream || !(*pstream) )
+        goto next;
+    //    剔除当前stream
+    *pstream = (*pstream)->next;
+    //     把stream 归还到free_streams
+    stream->next = lacf->free_streams;
+    lacf->free_streams = stream;
+    
+next:
+    // 置空指针    
     stream->session = NULL;    
     stream->lacf = NULL;
     stream->cscf = NULL;
+
+    stream->relay_ctx = NULL;
+    stream->main_conf = NULL;
+    stream->srv_conf = NULL;
+    stream->app_conf = NULL;
+    stream->relay_reconnects = NULL;
+}
+
+static void
+nxg_rtmp_live_delay_close_stream(ngx_event_t *ev)
+{
+    //printf("LLLLL nxg_rtmp_live_delay_close_stream\n");
+    ngx_rtmp_live_stream_t         *stream;
+    stream = ev->data;
+    // 只有当流已经停止的时候 才会自动释放
+    // 否则等所有缓存释放完毕之后，才能清空
+    if ( !ev || !stream || stream->active ) {
+        return;
+    }
+     
+    ngx_rtmp_stream_relay_close(stream);
+    ngx_rtmp_live_free_push_cache(stream); 
 }
 
 static ngx_int_t
@@ -821,50 +883,95 @@ ngx_rtmp_live_close_stream(ngx_rtmp_session_t *s, ngx_rtmp_close_stream_t *v)
             }
         }
     }
-   
-    // CLOSE_PUBLISH 
-    // 置空session，dump cache 时走ngx_rtmp_live_av_to_play
-    if ( ctx->publishing ) {
-        ctx->stream->session = NULL;
-        ctx->stream->is_publish_closed = 1;
-        ctx->stream->publish_closed_count += 1;   
-        ctx->stream->codec_ctx.is_init = 0;
+    
+    // idle_streams关闭  立即清除stream
+    // 1.开启缓存, 并且开启idle_streams：
+    if ( lacf->push_cache && lacf->idle_streams ){
+        if ( ctx->publishing ) {
+            ctx->stream->session = NULL;
+            ctx->stream->is_publish_closed = 1;
+            ctx->stream->publish_closed_count += 1;   
+            ctx->stream->codec_ctx.is_init = 0;
 
-        ngx_rtmp_live_push_cache_t *pct = ctx->stream->push_cache_tail;
-        if(pct != NULL && pct->has_closed != 1){
-            pct->has_closed = 1;
-        } 
+            ngx_rtmp_live_push_cache_t *pct = ctx->stream->push_cache_tail;
+            if(pct != NULL && pct->has_closed != 1){
+                pct->has_closed = 1;
+            } 
 
-        // 如果不开启缓存 立即清除stream
-        if ( !lacf->push_cache ) {
-            printf("push_cache:%ld publish close immediately clear-----------\n", lacf->push_cache);
-            ngx_rtmp_stream_relay_close(ctx->stream);
-            ngx_rtmp_live_free_push_cache(ctx->stream); 
-        } else {
-            // 如果开启缓存，并且关闭延时清除
+            // 0.关闭清空延时： 立即清除stream
+            // 1.开启清空延时： 
+            //     0.没有在释放缓存 进入等待(如果在等待期内，又有流到来，停止等待) 
+            //     1.正在释放混存   释放完毕之后，关闭
+            printf("publish close idle_streams:%ld delay_close:%ld cache_count:%ld\n", lacf->idle_streams, lacf->publish_delay_close, ctx->stream->push_cache_count);
             if ( !lacf->publish_delay_close ) { 
-                printf("push_cache:%ld publish close immediately clear-----------\n", lacf->push_cache);
                 ngx_rtmp_stream_relay_close(ctx->stream);
                 ngx_rtmp_live_free_push_cache(ctx->stream); 
             } else {
-                printf("push_cache:%ld publish close delay clear-----------\n", lacf->push_cache);
+                ngx_event_t *ev = &ctx->stream->push_cache_event;
+                printf("publish close lacf:%p push_cache_event:%d publish_delay_close_len:%ld\n", lacf, ev->timer_set, lacf->publish_delay_close_len);
+                if( !ev->timer_set ){
+                    ev = &ctx->stream->delay_close_event;
+                    ev->handler = nxg_rtmp_live_delay_close_stream;
+                    ev->log = NULL;
+                    ev->data = ctx->stream;
+                    ngx_add_timer(ev, lacf->publish_delay_close_len);
+                }
+                ctx->stream = NULL;
+                goto next;
+            }
+        } else {
+            // 以下都是true或false所以不存在第三种情况，并且当publish未断开时，ctx->stream->ctx一定不为空
+            // 0.当publish断开时，分以下情况：
+            //     0.关闭清空延时：
+            //         publish断开时: 立即清空。由publish控制
+            //         paly断开时:    立即清空。(有publish不存在，而play连进来的情况)
+            //     1.开启清空延时：
+            //         0.流无数据: 需要清空。 (有publish不存在，而play连进来的情况)
+            //         1.流有数据: 不能清空stream。
+            //             0.没有在释放； 由publish控制 goto
+            //             1.正在释放：   可以在缓存释放完毕之后，调用清空操作。goto
+            // 1.当publish未断开时：  由publish控制。  goto
+            printf("play close ctxs:%p delay_close:%ld cache_count:%ld\n", ctx->stream->ctx, lacf->publish_delay_close, ctx->stream->push_cache_count);
+            if ( !ctx->stream->ctx ){
+                if ( !lacf->publish_delay_close ) {
+                    ngx_rtmp_stream_relay_close(ctx->stream);
+                    ngx_rtmp_live_free_push_cache(ctx->stream); 
+                } else {
+                    if ( ctx->stream->push_cache_count <= 0 ){
+                        ngx_rtmp_stream_relay_close(ctx->stream);
+                        ngx_rtmp_live_free_push_cache(ctx->stream); 
+                    } else {
+                        ctx->stream = NULL;
+                        goto next;
+                    }
+                }
+            } else {
                 ctx->stream = NULL;
                 goto next;
             }
         }
-    } else {
-        // 以下都是 true 或 false  所以不存在第三种情况
-        // 1.当链接不为空时：  无关紧要。  goto
-        // 0.当链接为空时，分以下情况：
-        //     1.开启缓存：
-        //         1.开启延时：不能清空stream。   goto (此时会出现，publish关闭，play关闭，缓存时长为0的情况, 可以在缓存释放完毕之后，调用清空操作)
-        //         0.关闭延时：publish在断开的时候，立即清空  前面在做
-        //     0.关闭缓存：    publish在断开的时候，立即清空  前面在做
-        printf("play close no mater-----\n"); 
+
+        ngx_log_debug1(NGX_LOG_DEBUG_RTMP, s->connection->log, 0,
+                "live: delete empty stream '%s'",
+                ctx->stream->name);
+
+        if (!ctx->silent && !ctx->publishing && !lacf->play_restart) {
+            ngx_rtmp_send_status(s, "NetStream.Play.Stop", "status", "Stop live");
+        }
+        // 走push_cache自己的步骤 
         ctx->stream = NULL;
-        goto next;
+        goto next;        
+    } else {
+        // 没有开启缓存，走远来的逻辑
+        if (ctx->stream->ctx) {
+            // 避免play未断，publish断开重连出现乱码
+            if ( ctx->publishing )
+                ctx->stream->codec_ctx.is_init = 0;
+                        
+            ctx->stream = NULL;
+            goto next;
+        }
     }
-    
     
     ngx_log_debug1(NGX_LOG_DEBUG_RTMP, s->connection->log, 0,
             "live: delete empty stream '%s'",
@@ -886,7 +993,7 @@ ngx_rtmp_live_close_stream(ngx_rtmp_session_t *s, ngx_rtmp_close_stream_t *v)
     if (!ctx->silent && !ctx->publishing && !lacf->play_restart) {
         ngx_rtmp_send_status(s, "NetStream.Play.Stop", "status", "Stop live");
     }
-
+    
 next:
     return next_close_stream(s, v);
 }
@@ -1052,6 +1159,7 @@ ngx_rtmp_live_av_to_net(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
     if (codec_ctx) {
         // 音频头 
         if (h->type == NGX_RTMP_MSG_AUDIO) {
+        //printf("LLLLL NGX_RTMP_MSG_AUDIO interleave:%ld csidx:%ld, type:%d\n", lacf->interleave, csidx, h->type);
             header = codec_ctx->aac_header;
             // 是分离的 
             if (lacf->interleave) {
@@ -1070,6 +1178,7 @@ ngx_rtmp_live_av_to_net(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
             ngx_rtmp_stream_codec_ctx_copy(codec_ctx, ctx->stream);
         // 视频头
         } else {
+        //printf("LLLLL NGX_RTMP_MSG_VIDEO interleave:%ld csidx:%ld, type:%d\n", lacf->interleave, csidx, h->type);
             header = codec_ctx->avc_header;
 
             if (lacf->interleave) {
@@ -1137,7 +1246,7 @@ ngx_rtmp_live_av_to_net(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
                         "live: skipping header");
                 continue;
             }
-            // 如果先收到的是音频 等视频  
+            // 等视频帧到来：如果收到音频 并且 cs[0]应该是视频流 
             if (lacf->wait_video && h->type == NGX_RTMP_MSG_AUDIO &&
                     !pctx->cs[0].active)
             {
@@ -1754,6 +1863,7 @@ nxg_rtmp_live_av_dump_cache(ngx_event_t *ev)
         stream->push_cache_delta = 0;
         
         ngx_rtmp_stream_relay_close(stream);             
+        ngx_rtmp_live_free_push_cache(stream); 
     }
 }
 
@@ -2018,9 +2128,6 @@ ngx_rtmp_live_av_to_cache(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
         ctx->stream->push_cache_head = pc;
         ctx->stream->push_cache_tail = pc;
         ctx->stream->push_cache_count = 1;
-        
-        ctx->stream->lacf    = lacf;
-        ctx->stream->cscf    = cscf;
     } else {
         if(pct != NULL){
             pct->next = pc;
@@ -2030,7 +2137,6 @@ ngx_rtmp_live_av_to_cache(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
             return NGX_ERROR; 
         }
     }
-    //printf("ctx->stream->push_cache_delta:%ld timestamp:%ld push_cache_count:%ld\n", ctx->stream->push_cache_delta, timestamp, ctx->stream->push_cache_count);
     
     // DUMP_CACHE start     
     pcp = pch;
@@ -2212,16 +2318,17 @@ ngx_rtmp_live_publish(ngx_rtmp_session_t *s, ngx_rtmp_publish_t *v)
         ngx_rtmp_send_status(s, "NetStream.Publish.Start",
                              "status", "Start publishing");
     }
-
-    // --------liw 
+    
+    // --------liw
     if( lacf->push_cache ){
-        ctx->stream->lacf = lacf;
-        ctx->stream->session = s;
-         
+        ctx->stream->is_publish_closed = 0;
+        ctx->stream->pool  = ngx_create_pool(4096, NULL);
+        
+        // 转推相关 
         ctx->stream->app_conf = s->app_conf; 
         ctx->stream->srv_conf = s->srv_conf;
         ctx->stream->main_conf = s->main_conf; 
-
+        
         ngx_memcpy(&ctx->stream->publish, v, sizeof(ngx_rtmp_publish_t));
     }
 next:

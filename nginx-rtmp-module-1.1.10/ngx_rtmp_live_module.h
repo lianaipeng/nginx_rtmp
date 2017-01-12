@@ -150,6 +150,8 @@ struct ngx_rtmp_live_stream_s {
     ngx_uint_t                          push_cache_expts; //end expect time
     //   释放缓存时间事件 
     ngx_event_t                         push_cache_event;
+    //   延时销毁stream事件  
+    ngx_event_t                         delay_close_event;
     
     //   当publish断开之后 才启用这三个参数 否则默认为空
     ngx_rtmp_session_t                  *session;    
@@ -167,7 +169,7 @@ struct ngx_rtmp_live_stream_s {
     void                                **srv_conf;
     void                                **app_conf;
     ngx_flag_t                          is_relay_start; // 是否已经开始转推
-    ngx_rtmp_relay_reconnect_t*         relay_reconnects;     // 
+    ngx_rtmp_relay_reconnect_t          *relay_reconnects;     // 
      
     ngx_rtmp_publish_t                  publish;
     
@@ -209,6 +211,7 @@ struct ngx_rtmp_live_app_conf_s{
     ngx_int_t                           push_cache_time_len;
     ngx_int_t                           push_cache_frame_num;
     ngx_flag_t                          publish_delay_close;
+    ngx_msec_t                          publish_delay_close_len;
     
     
     ngx_uint_t                          stream_push_reconnect;
@@ -224,11 +227,11 @@ struct ngx_rtmp_live_app_conf_s{
     ngx_msec_t                  pull_reconnect;
     
     // RELAY_CACHE  转推缓存
-    ngx_flag_t                  relay_cache;   // 是否开启转推 
-    ngx_msec_t                  relay_cache_poll_len;   // 手动控制转推 的轮巡时长 
-    ngx_str_t                   relay_cache_file;       // 手动控制转推 的标志文件位置
-    ngx_flag_t                          relay_cache_ctrl; 
-    ngx_event_t                         relay_cache_event;
+    ngx_flag_t                          relay_cache;   // 是否开启转推 
+    ngx_msec_t                          relay_cache_poll_len;   // 手动控制转推 的轮巡时长 
+    ngx_str_t                           relay_cache_file;       // 手动控制转推 的标志文件位置
+    ngx_event_t                         relay_cache_event;      // 监控手动转推是否开启
+    ngx_flag_t                          relay_cache_ctrl;       // 监控到的转推状态
 };
 
 #define RELAY_CACHE_FILE_LEN 256
