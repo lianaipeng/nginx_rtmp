@@ -386,6 +386,11 @@ ngx_rtmp_live_get_stream(ngx_rtmp_session_t *s, u_char *name, int create)
     ngx_memcpy((*stream)->name, name,
             ngx_min(sizeof((*stream)->name) - 1, len));
     (*stream)->epoch = ngx_current_msec;
+    (*stream)->is_publish_closed = 0;
+    
+    if( lacf->push_cache ){
+        (*stream)->pool = ngx_create_pool(4096, NULL);
+    }
     
     // 有队列情况下 修改内存池
     ngx_log_error(NGX_LOG_INFO, s->connection->log, 0, "push_cache:%d push_cache_time_len:%L push_cache_frame_num:%d", lacf->push_cache, lacf->push_cache_time_len, lacf->push_cache_frame_num);
@@ -710,10 +715,11 @@ ngx_rtmp_live_join(ngx_rtmp_session_t *s, u_char *name, unsigned publisher)
     ctx->cs[0].csid = NGX_RTMP_CSID_VIDEO;
     ctx->cs[1].csid = NGX_RTMP_CSID_AUDIO;
     if ( lacf->push_cache ){
+         
         ctx->stream->session = s;
         ctx->stream->lacf = lacf;
         ctx->stream->cscf  = ngx_rtmp_get_module_srv_conf(s, ngx_rtmp_core_module);
-
+        
         ctx->stream->cs[0].csid = NGX_RTMP_CSID_VIDEO;
         ctx->stream->cs[1].csid = NGX_RTMP_CSID_AUDIO;
     }
@@ -727,11 +733,12 @@ ngx_rtmp_live_join(ngx_rtmp_session_t *s, u_char *name, unsigned publisher)
 static void  
 ngx_rtmp_live_free_push_cache(ngx_rtmp_live_stream_t *stream)
 {
-    //printf("LLLLL ngx_rtmp_live_free_push_cache\n");
+    printf("LLLLL ngx_rtmp_live_free_push_cache\n");
     ngx_rtmp_live_stream_t         **pstream;
     ngx_rtmp_live_app_conf_t       *lacf;
     size_t                      len;
     lacf = stream->lacf;
+    printf("LLLLL ngx_rtmp_live_free_push_cache stream:%p lacf:%p\n", stream, stream->lacf);
     if( !stream || !stream->lacf ) {
         return;
     }
@@ -811,11 +818,12 @@ next:
 static void
 nxg_rtmp_live_delay_close_stream(ngx_event_t *ev)
 {
-    //printf("LLLLL nxg_rtmp_live_delay_close_stream\n");
     ngx_rtmp_live_stream_t         *stream;
     stream = ev->data;
+    printf("LLLLL nxg_rtmp_live_delay_close_stream active:%d\n", stream->active);
+    // 1. 如果在未开始释放流的时候。 重新推流active=1，则不清空。
+    // 2. 如果在未开始释放流的时候。 流正在倾倒，则不清空，等释放完毕在清空(不会执行到这里)
     // 只有当流已经停止的时候 才会自动释放
-    // 否则等所有缓存释放完毕之后，才能清空
     if ( !ev || !stream || stream->active ) {
         return;
     }
@@ -2321,12 +2329,14 @@ ngx_rtmp_live_publish(ngx_rtmp_session_t *s, ngx_rtmp_publish_t *v)
     
     // --------liw
     if( lacf->push_cache ){
-        ctx->stream->is_publish_closed = 0;
-        ctx->stream->pool  = ngx_create_pool(4096, NULL);
-        
+        /*
+        ctx->stream->session   = s;
+        ctx->stream->lacf      = lacf;
+        ctx->stream->cscf      = ngx_rtmp_get_module_srv_conf(s, ngx_rtmp_core_module);
+        */
         // 转推相关 
-        ctx->stream->app_conf = s->app_conf; 
-        ctx->stream->srv_conf = s->srv_conf;
+        ctx->stream->app_conf  = s->app_conf; 
+        ctx->stream->srv_conf  = s->srv_conf;
         ctx->stream->main_conf = s->main_conf; 
         
         ngx_memcpy(&ctx->stream->publish, v, sizeof(ngx_rtmp_publish_t));
