@@ -1071,6 +1071,7 @@ ngx_rtmp_live_av_to_net(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
     ngx_uint_t                      csidx;
     uint32_t                        delta;
     ngx_rtmp_live_chunk_stream_t   *cs;
+    ngx_int_t                       vasync;
 #ifdef NGX_DEBUG
     const char                     *type_s;
 
@@ -1101,6 +1102,19 @@ ngx_rtmp_live_av_to_net(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
     if (!ctx->stream->active) {
         ngx_rtmp_live_start(s);
     }
+
+     
+    // 视音频不同步的厉害就断链
+    vasync = ((ngx_int_t)ctx->cs[1].timestamp - (ngx_int_t)ctx->cs[0].timestamp);
+    if( vasync >= 60 || vasync <= -60 ){
+        printf("LLLLL ngx_rtmp_live_av audio:%d video:%d sync:%ld\n", ctx->cs[1].timestamp, ctx->cs[0].timestamp, vasync);
+        ngx_log_error(NGX_LOG_ERR, s->connection->log, 0,
+                  "live: video audio sync:%i", vasync);
+        
+        ngx_rtmp_finalize_session(s);
+        return NGX_ERROR;
+    }
+    
     
     ngx_log_debug2(NGX_LOG_DEBUG_RTMP, s->connection->log, 0,
                    "live: %s packet timestamp=%uD",
@@ -1156,6 +1170,7 @@ ngx_rtmp_live_av_to_net(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
     // 时间差
     delta = ch.timestamp - lh.timestamp;
     
+     
     rpkt = ngx_rtmp_append_shared_bufs(cscf, NULL, in);
 
     // 准备包
@@ -2054,7 +2069,7 @@ ngx_rtmp_live_av_to_cache(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
         return NGX_ERROR; 
      
     mandatory = 0;
-
+    
     prio = (h->type == NGX_RTMP_MSG_VIDEO ?
             ngx_rtmp_get_video_frame_type(in) : 0);
     cscf = ngx_rtmp_get_module_srv_conf(s, ngx_rtmp_core_module);
@@ -2101,9 +2116,9 @@ ngx_rtmp_live_av_to_cache(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
         }
     }
      
+    // 如果推流中间断开过，保证时间戳单调递增
     timestamp = 0;
     if ( mandatory == 0 ) {
-        // 如果推流中间断开过，保证时间戳单调递增
         last = ctx->stream->push_cache_delta + ctx->stream->push_cache_lts; 
         cur  = ctx->stream->push_cache_delta + h->timestamp;
         if ( ctx->stream->is_publish_closed ){  
@@ -2120,14 +2135,14 @@ ngx_rtmp_live_av_to_cache(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
         }
     } 
     
-    pc->mandatory = mandatory;       // 是否为 音视频pps sps头
-    pc->frame_type = h->type ;
-    pc->frame_flag = prio;           // 是否为关键帧
-    pc->frame_pts = timestamp;    // 时间戳
-    pc->frame_buf = ngx_rtmp_append_data_to_push_cache(cscf->chunk_size, ctx->stream, NULL, in);
-    pc->frame_len = h->mlen;         // 每一帧长度
+    pc->mandatory    = mandatory;       // 是否为 音视频pps sps头
+    pc->frame_type   = h->type ;
+    pc->frame_flag   = prio;           // 是否为关键帧
+    pc->frame_pts    = timestamp;    // 时间戳
+    pc->frame_buf    = ngx_rtmp_append_data_to_push_cache(cscf->chunk_size, ctx->stream, NULL, in);
+    pc->frame_len    = h->mlen;         // 每一帧长度
     pc->frame_header = *h;
-    pc->next = NULL;  
+    pc->next         = NULL;  
     // ############### 缓存数据
      
     pch = ctx->stream->push_cache_head;
@@ -2255,6 +2270,7 @@ ngx_rtmp_live_av(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
         return ret;   
     }
      
+    
     // 推流断开重连事件
     if (ctx->idle_evt.timer_set) {
         ngx_add_timer(&ctx->idle_evt, lacf->idle_timeout);
