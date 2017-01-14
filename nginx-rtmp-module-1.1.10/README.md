@@ -360,14 +360,23 @@ rtmp_auto_push directive.
             
             application myapp {
                 live on;
+                    
+                # 是否允许空闲stream存在（默认为允许on），如果不允许：
+                # 1.当publish断开时，需要立即清空plays
+                # 2.当流名不存在时，paly不允许链接
+#            idle_streams on;
+                idle_streams off;
                 
                 # 缓存功能 开启/关闭 (该开关为缓存 总开关)
                 push_cache on;
                 
-                # 延时关闭链接 开启/关闭
-                # 推流断开时，是否延时关闭拉流链接（只有在idle_stream 启用的时候才有用）
+                
+                # 延时开启: 当没开始dump缓存时，等待重连的publish，等待len之后，publish链接没到来，释放缓存。
+                #           当开始dump缓存时，等缓存dump完毕之后。释放缓存。
+                # 延时关闭: 当publish断开时，直接释放缓存内容。
                 publish_delay_close on;
                 
+
                 # 缓存音视频时常（单位ms） 必须大于0
                 push_cache_time_len  120000;
                 # 缓存帧数 必须大于0

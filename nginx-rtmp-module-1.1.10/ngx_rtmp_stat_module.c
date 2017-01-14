@@ -743,7 +743,11 @@ ngx_rtmp_stat_live(ngx_http_request_t *r, ngx_chain_t ***lll,
             nclients = 0;
             codec = NULL;
             // 针对publish
-            if ( stream ) {
+            //printf("SSSSS stream:%p stream->ctx:%p active:%d head:%p\n", stream, stream->ctx, stream->active, stream->push_cache_head);
+            // 开启缓存的时候监控显示publish（stream->lacf为空,只有在混存开启的时候才会赋值）
+            // 关闭缓存，并且有推流的时候显示publish
+            if ( (stream && stream->lacf && stream->lacf->push_cache && stream->push_cache_head)
+                || (stream && stream->active) ) {
                 // 计算缓存的时间
                 ngx_rtmp_stat_push_cache(r, lll, stream);
                 
