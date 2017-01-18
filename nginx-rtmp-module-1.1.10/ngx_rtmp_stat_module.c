@@ -533,7 +533,8 @@ ngx_rtmp_stat_push_cache_json(ngx_http_request_t *r, ngx_chain_t ***lll,
 {
     u_char  buf[NGX_INT_T_LEN];
     ngx_rtmp_live_push_cache_t  *pch, *pct, *pc; 
-    ngx_uint_t          cache_len, cache_alen, cache_vlen;
+    ngx_uint_t          cache_len, cache_alen, cache_vlen, nrelays;
+    ngx_rtmp_relay_ctx_t           *rctx;
     
     NGX_RTMP_STAT_L("\"cache_count\":");
     NGX_RTMP_STAT(buf, ngx_snprintf(buf, sizeof(buf), "%ui",
@@ -544,26 +545,28 @@ ngx_rtmp_stat_push_cache_json(ngx_http_request_t *r, ngx_chain_t ***lll,
     cache_len = 0;
     cache_alen = 0;
     cache_vlen = 0;
-    if(pch && pct){
-        cache_len =  pct->frame_pts - pch->frame_pts;
-
+    if( pch ){
         pc = pch;
-        while( pc && pc->frame_type != NGX_RTMP_MSG_AUDIO ){
+        while( pc && (pc->frame_type != NGX_RTMP_MSG_AUDIO || pc->mandatory == 1)){
             pc = pc->next;
         }
-        cache_alen = stream->push_cache_aets - pc->frame_pts;
-
+        if(pc)
+            cache_alen = stream->push_cache_aets - pc->frame_pts;
+        
         pc = pch;
-        while( pc && pc->frame_type != NGX_RTMP_MSG_VIDEO ){
+        while( pc && (pc->frame_type != NGX_RTMP_MSG_VIDEO || pc->mandatory == 1)){
             pc = pc->next;
         }
-        cache_vlen = stream->push_cache_vets - pc->frame_pts;
+        if(pc)
+            cache_vlen = stream->push_cache_vets - pc->frame_pts;
+        
+        cache_len =  cache_alen>=cache_vlen?cache_alen:cache_vlen ;
     }
-
+    
     NGX_RTMP_STAT_L(",\"cache_len\":");
     NGX_RTMP_STAT(buf, ngx_snprintf(buf, sizeof(buf), "%ui",
                   (ngx_uint_t) cache_len) - buf);
-    
+     
     NGX_RTMP_STAT_L(",\"cache_alen\":");
     NGX_RTMP_STAT(buf, ngx_snprintf(buf, sizeof(buf), "%ui",
                   (ngx_uint_t) cache_alen) - buf);
@@ -571,6 +574,14 @@ ngx_rtmp_stat_push_cache_json(ngx_http_request_t *r, ngx_chain_t ***lll,
     NGX_RTMP_STAT_L(",\"cache_vlen\":");
     NGX_RTMP_STAT(buf, ngx_snprintf(buf, sizeof(buf), "%ui",
                   (ngx_uint_t) cache_vlen) - buf);
+
+    nrelays = 0;
+    for (rctx = stream->relay_ctx; rctx; rctx = rctx->next) 
+        nrelays += 1;
+    NGX_RTMP_STAT_L(",\"nrelays\":");
+    NGX_RTMP_STAT(buf, ngx_snprintf(buf, sizeof(buf),"%l",
+                (ngx_int_t)nrelays) - buf);                  
+
 }
 static void
 ngx_rtmp_stat_push_cache(ngx_http_request_t *r, ngx_chain_t ***lll, ngx_rtmp_live_stream_t *stream)
@@ -724,12 +735,7 @@ ngx_rtmp_stat_live(ngx_http_request_t *r, ngx_chain_t ***lll,
                              NGX_RTMP_STAT_BW_BYTES);
             ngx_rtmp_stat_bw(r, lll, &stream->bw_out, "out",
                              NGX_RTMP_STAT_BW_BYTES);
-            /*
-            ngx_rtmp_stat_bw(r, lll, &stream->bw_in_audio, "in_audio",
-                             NGX_RTMP_STAT_BW);
-            ngx_rtmp_stat_bw(r, lll, &stream->bw_in_video, "in_video",
-                             NGX_RTMP_STAT_BW);
-            */
+
             ngx_rtmp_stat_bw(r, lll, &stream->bw_in_audio, "in_audio",
                              NGX_RTMP_STAT_BW);
             ngx_rtmp_stat_bw(r, lll, &stream->bw_in_video, "in_video",
@@ -739,18 +745,16 @@ ngx_rtmp_stat_live(ngx_http_request_t *r, ngx_chain_t ***lll,
                              NGX_RTMP_STAT_BW);
             ngx_rtmp_stat_bw(r, lll, &stream->bw_out_video, "out_video",
                              NGX_RTMP_STAT_BW);
+            // 计算缓存的时间
+            ngx_rtmp_stat_push_cache(r, lll, stream);
             
             nclients = 0;
             codec = NULL;
             // 针对publish
-            //printf("SSSSS stream:%p stream->ctx:%p active:%d head:%p\n", stream, stream->ctx, stream->active, stream->push_cache_head);
             // 开启缓存的时候监控显示publish（stream->lacf为空,只有在混存开启的时候才会赋值）
             // 关闭缓存，并且有推流的时候显示publish
-            if ( (stream && stream->lacf && stream->lacf->push_cache && stream->push_cache_head)
-                || (stream && stream->active) ) {
-                // 计算缓存的时间
-                ngx_rtmp_stat_push_cache(r, lll, stream);
-                
+            if ( (stream->lacf && stream->lacf->push_cache && stream->push_cache_head)
+                || stream->active ) {
                 NGX_RTMP_STAT_L("<client>");
                 codec = &stream->codec_ctx;
                 
@@ -1118,9 +1122,7 @@ ngx_rtmp_stat_live_json(ngx_http_request_t *r, ngx_chain_t ***lll,
     u_char                          bbuf[NGX_INT32_LEN];
     //ngx_rtmp_stat_loc_conf_t       *slcf;
     u_char                         *cname;
-    ngx_rtmp_relay_ctx_t           *rctx;
-    ngx_uint_t                      nrelays;
-
+    
     if (!lacf->live) {
         return;
     }
@@ -1131,8 +1133,8 @@ ngx_rtmp_stat_live_json(ngx_http_request_t *r, ngx_chain_t ***lll,
     nstreams = 0;
     NGX_RTMP_STAT_L("{\r\n\"streams\":\r\n[");
     for (n = 0; n < lacf->nbuckets; ++n) {
-        for (stream = lacf->streams[n]; stream; stream = stream->next, ++nstreams) {
-            if( nstreams != 0 )
+        for (stream = lacf->streams[n]; stream; stream = stream->next) {
+            if( nstreams++ != 0 )
                 NGX_RTMP_STAT_L(",");
             
             NGX_RTMP_STAT_L("{\"name\":\"");
@@ -1147,62 +1149,96 @@ ngx_rtmp_stat_live_json(ngx_http_request_t *r, ngx_chain_t ***lll,
             ngx_rtmp_stat_bw_json(r, lll, &stream->bw_in, "in",
                     NGX_RTMP_STAT_BW_BYTES);
             NGX_RTMP_STAT_L(",");
+            ngx_rtmp_stat_bw_json(r, lll, &stream->bw_out, "out",
+                    NGX_RTMP_STAT_BW_BYTES);
+            NGX_RTMP_STAT_L(",");
+
             ngx_rtmp_stat_bw_json(r, lll, &stream->bw_in_audio, "in_audio",
                     NGX_RTMP_STAT_BW);
             NGX_RTMP_STAT_L(",");
             ngx_rtmp_stat_bw_json(r, lll, &stream->bw_in_video, "in_video",
                     NGX_RTMP_STAT_BW);
             NGX_RTMP_STAT_L(",");
-            ngx_rtmp_stat_bw_json(r, lll, &stream->bw_out, "out",
-                    NGX_RTMP_STAT_BW_BYTES);
-            NGX_RTMP_STAT_L(",");
+
             ngx_rtmp_stat_bw_json(r, lll, &stream->bw_out_audio, "out_audio",
                     NGX_RTMP_STAT_BW);
             NGX_RTMP_STAT_L(",");
             ngx_rtmp_stat_bw_json(r, lll, &stream->bw_out_video, "out_video",
                     NGX_RTMP_STAT_BW);
-            
-            // cache status  
             NGX_RTMP_STAT_L(",");
+            // 计算缓存的时间
             ngx_rtmp_stat_push_cache_json(r, lll, stream);
             
             nclients = 0;
             codec = NULL;
+            
             NGX_RTMP_STAT_L(",\"clients\":\r\n[");
-            for (ctx = stream->ctx; ctx; ctx = ctx->next, ++nclients) {
-                if( nclients != 0 )
+            // 针对publish
+            // 开启缓存的时候监控显示publish（stream->lacf为空,只有在混存开启的时候才会赋值）
+            // 关闭缓存，并且有推流的时候显示publish
+            if ( (stream->lacf && stream->lacf->push_cache && stream->push_cache_head)
+                    || stream->active ) {
+                nclients++;
+                // cache status  
+                NGX_RTMP_STAT_L("{\r\n");
+
+                // 获取publish端信息
+                codec = &stream->codec_ctx;    
+                ngx_rtmp_stat_publish_json(r, lll, codec);
+                  
+                // 丢包率
+                NGX_RTMP_STAT_L(",\"dropped\":");
+                NGX_RTMP_STAT(buf, ngx_snprintf(buf, sizeof(buf),
+                            "%ui", stream->ndropped) - buf);                  
+                
+                // 音视频同步 
+                NGX_RTMP_STAT_L(",\"avsync\":");
+                if (!lacf->interleave) {
+                    NGX_RTMP_STAT(bbuf, ngx_snprintf(bbuf, sizeof(bbuf),
+                                "%D", stream->cs[1].timestamp -
+                                stream->cs[0].timestamp) - bbuf);
+                }
+                
+                //不知道是什么 
+                NGX_RTMP_STAT_L(",\"timestamp\":");
+                NGX_RTMP_STAT(bbuf, ngx_snprintf(bbuf, sizeof(bbuf),
+                            "%D", stream->current_time) - bbuf); 
+                NGX_RTMP_STAT_L(",\"publishing\":1");
+                
+                if ( stream->active ) {
+                    NGX_RTMP_STAT_L(",\"active\":1");
+                } else {
+                    NGX_RTMP_STAT_L(",\"active\":0");
+                }
+                 
+                NGX_RTMP_STAT_L("\r\n}");
+            }
+            
+            for (ctx = stream->ctx; ctx; ctx = ctx->next) {
+                if(ctx->publishing)
+                    continue;
+
+                if( nclients++ != 0 )
                     NGX_RTMP_STAT_L(",");
                     
                 NGX_RTMP_STAT_L("{\r\n\"dropped\":");
                 NGX_RTMP_STAT(buf, ngx_snprintf(buf, sizeof(buf),
                             "%ui", ctx->ndropped) - buf);                  
-
+                
                 NGX_RTMP_STAT_L(",\"avsync\":");
                 if (!lacf->interleave) {
                     NGX_RTMP_STAT(bbuf, ngx_snprintf(bbuf, sizeof(bbuf),
                                 "%D", ctx->cs[1].timestamp -
                                 ctx->cs[0].timestamp) - bbuf);
                 }
-                if (ctx->publishing) {
-                    codec = &stream->codec_ctx;    
-                    NGX_RTMP_STAT_L(",");
-                    ngx_rtmp_stat_publish_json(r, lll, codec);
-                  
-                    //不知道是什么 
-                    NGX_RTMP_STAT_L(",\"timestamp\":");
-                    NGX_RTMP_STAT(bbuf, ngx_snprintf(bbuf, sizeof(bbuf),
-                                "%D", stream->current_time) - bbuf); 
-                    NGX_RTMP_STAT_L(",\"publishing\":1");
-                } else {
-                    s = ctx->session;
-                    NGX_RTMP_STAT_L(",");
-                    ngx_rtmp_stat_client_json(r, lll, s);
-                    
-                    NGX_RTMP_STAT_L(",\"timestamp\":");
-                    NGX_RTMP_STAT(bbuf, ngx_snprintf(bbuf, sizeof(bbuf),
-                                "%D", s->current_time) - bbuf);
-                    NGX_RTMP_STAT_L(",\"publishing\":0");
-                }
+                s = ctx->session;
+                NGX_RTMP_STAT_L(",");
+                ngx_rtmp_stat_client_json(r, lll, s);
+
+                NGX_RTMP_STAT_L(",\"timestamp\":");
+                NGX_RTMP_STAT(bbuf, ngx_snprintf(bbuf, sizeof(bbuf),
+                            "%D", s->current_time) - bbuf);
+                NGX_RTMP_STAT_L(",\"publishing\":0");
                 
                 if (ctx->active) {
                     NGX_RTMP_STAT_L(",\"active\":1");
@@ -1219,13 +1255,6 @@ ngx_rtmp_stat_live_json(ngx_http_request_t *r, ngx_chain_t ***lll,
             NGX_RTMP_STAT(buf, ngx_snprintf(buf, sizeof(buf), "%l",
                         (ngx_int_t) nclients) - buf);
                 
-            nrelays = 0;
-            for (rctx = stream->relay_ctx; rctx; rctx = rctx->next) 
-                nrelays += 1;
-            NGX_RTMP_STAT_L(",\"nrelays\":");
-            NGX_RTMP_STAT(buf, ngx_snprintf(buf, sizeof(buf),
-                        "%ui", nrelays) - buf);                  
-            
             NGX_RTMP_STAT_L(",\"meta\":{\r\n");         
             if ( codec ) {
                 NGX_RTMP_STAT_L("\"audio\":{");
@@ -1291,16 +1320,17 @@ ngx_rtmp_stat_live_json(ngx_http_request_t *r, ngx_chain_t ***lll,
                     NGX_RTMP_STAT_L(",\"level\":");
                     NGX_RTMP_STAT(buf, ngx_snprintf(buf, sizeof(buf),
                                 "%.1f", codec->avc_level / 10.) - buf);
-                }
+                }  
                 NGX_RTMP_STAT_L("\r\n}");         
-            }
+            } 
             NGX_RTMP_STAT_L("\r\n}");         
-
+            // end meta
+             
             NGX_RTMP_STAT_L("\r\n}");
         }
-    } 
+    } // end stream 
     NGX_RTMP_STAT_L("]");
-
+    
     NGX_RTMP_STAT_L(",\"nclients\":");
     NGX_RTMP_STAT(buf, ngx_snprintf(buf, sizeof(buf), "%l",
                 (ngx_int_t) total_nclients) - buf);
@@ -1557,9 +1587,9 @@ ngx_rtmp_stat_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
 static char *
 ngx_rtmp_stat(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
-    //printf("SSSSS ngx_rtmp_stat\n");
+    //printf("SSSSS ngx_rtmp_stat_inter\n");
     ngx_http_core_loc_conf_t  *clcf;
-
+    
     clcf = ngx_http_conf_get_module_loc_conf(cf, ngx_http_core_module);
     if( 0 ){
         //clcf->handler = ngx_rtmp_stat_handler_cache;
@@ -1568,7 +1598,7 @@ ngx_rtmp_stat(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     } else {
         clcf->handler = ngx_rtmp_stat_handler;
     }
-
+    
     return ngx_conf_set_bitmask_slot(cf, cmd, conf);
 }
 
