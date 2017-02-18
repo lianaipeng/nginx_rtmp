@@ -111,7 +111,8 @@ ngx_log_error_core(ngx_uint_t level, ngx_log_t *log, ngx_err_t err,
     ssize_t      n;
     ngx_uint_t   wrote_stderr, debug_connection;
     u_char       errstr[NGX_MAX_ERROR_STR];
-
+    
+    ngx_memzero(errstr, NGX_MAX_ERROR_STR);
     last = errstr + NGX_MAX_ERROR_STR;
 
     p = ngx_cpymem(errstr, ngx_cached_err_log_time.data,
@@ -490,7 +491,7 @@ ngx_log_set_levels(ngx_conf_t *cf, ngx_log_t *log)
     }
 
     value = cf->args->elts;
-
+    
     for (i = 2; i < cf->args->nelts; i++) {
         found = 0;
 
@@ -503,7 +504,7 @@ ngx_log_set_levels(ngx_conf_t *cf, ngx_log_t *log)
                                        &value[i]);
                     return NGX_CONF_ERROR;
                 }
-
+                
                 log->log_level = n;
                 found = 1;
                 break;
@@ -568,7 +569,7 @@ ngx_log_set_log(ngx_conf_t *cf, ngx_log_t **head)
         if (new_log == NULL) {
             return NGX_CONF_ERROR;
         }
-
+        
         if (*head == NULL) {
             *head = new_log;
         }
@@ -579,7 +580,7 @@ ngx_log_set_log(ngx_conf_t *cf, ngx_log_t **head)
     if (ngx_strcmp(value[1].data, "stderr") == 0) {
         ngx_str_null(&name);
         cf->cycle->log_use_stderr = 1;
-
+        
         new_log->file = ngx_conf_open_file(cf->cycle, &name);
         if (new_log->file == NULL) {
             return NGX_CONF_ERROR;
@@ -667,11 +668,11 @@ ngx_log_set_log(ngx_conf_t *cf, ngx_log_t **head)
     if (ngx_log_set_levels(cf, new_log) != NGX_CONF_OK) {
         return NGX_CONF_ERROR;
     }
-
+    
     if (*head != new_log) {
         ngx_log_insert(*head, new_log);
     }
-
+    
     return NGX_CONF_OK;
 }
 

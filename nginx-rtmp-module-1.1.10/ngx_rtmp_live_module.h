@@ -184,6 +184,8 @@ struct ngx_rtmp_live_stream_s {
     
     ngx_uint_t                          ndropped;
     ngx_flag_t                          interleave;
+
+    ngx_uint_t                          log_lts;    // 记录日志使用（5s记录一次）
 };
 
 

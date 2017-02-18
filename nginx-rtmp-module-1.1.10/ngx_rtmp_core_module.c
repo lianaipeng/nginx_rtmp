@@ -24,6 +24,10 @@ static char *ngx_rtmp_core_listen(ngx_conf_t *cf, ngx_command_t *cmd,
     void *conf);
 static char *ngx_rtmp_core_application(ngx_conf_t *cf, ngx_command_t *cmd,
     void *conf);
+static char *ngx_rtmp_core_error_log(ngx_conf_t *cf, ngx_command_t *cmd,
+    void *conf);
+static char *ngx_rtmp_core_rtmp_log(ngx_conf_t *cf, ngx_command_t *cmd,
+    void *conf);
 
 
 ngx_rtmp_core_main_conf_t      *ngx_rtmp_core_main_conf;
@@ -54,6 +58,26 @@ static ngx_command_t  ngx_rtmp_core_commands[] = {
     { ngx_string("application"),
       NGX_RTMP_SRV_CONF|NGX_CONF_BLOCK|NGX_CONF_TAKE1,
       ngx_rtmp_core_application,
+      NGX_RTMP_SRV_CONF_OFFSET,
+      0,
+      NULL },
+
+    { ngx_string("error_log"),
+      //NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_1MORE,
+      NGX_RTMP_MAIN_CONF|NGX_RTMP_SRV_CONF|NGX_RTMP_APP_CONF|NGX_CONF_1MORE,
+      ngx_rtmp_core_error_log,
+      //NGX_HTTP_LOC_CONF_OFFSET,
+      //NGX_RTMP_APP_CONF_OFFSET,
+      NGX_RTMP_SRV_CONF_OFFSET,
+      0,
+      NULL },
+
+    { ngx_string("rtmp_log"),
+      //NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_1MORE,
+      NGX_RTMP_MAIN_CONF|NGX_RTMP_SRV_CONF|NGX_RTMP_APP_CONF|NGX_CONF_1MORE,
+      ngx_rtmp_core_rtmp_log,
+      //NGX_HTTP_LOC_CONF_OFFSET,
+      //NGX_RTMP_APP_CONF_OFFSET,
       NGX_RTMP_SRV_CONF_OFFSET,
       0,
       NULL },
@@ -287,6 +311,23 @@ ngx_rtmp_core_merge_srv_conf(ngx_conf_t *cf, void *parent, void *child)
 
     conf->pool = prev->pool;
 
+    //printf("ngx_rtmp_core_module ngx_rtmp_core_merge_srv_conf conf->error_log:%p, prev->error_log:%p\n", conf->error_log, prev->error_log);
+    if (conf->error_log == NULL) {
+        if (prev->error_log) {
+            conf->error_log = prev->error_log;
+        } else {
+            conf->error_log = &cf->cycle->new_log;
+        }
+    }
+
+    if (conf->rtmp_log == NULL) {
+        if (prev->rtmp_log) {
+            conf->rtmp_log = prev->rtmp_log;
+        } else {
+            conf->rtmp_log = &cf->cycle->new_log;
+        }
+    }
+    
     return NGX_CONF_OK;
 }
 
@@ -294,6 +335,7 @@ ngx_rtmp_core_merge_srv_conf(ngx_conf_t *cf, void *parent, void *child)
 static void *
 ngx_rtmp_core_create_app_conf(ngx_conf_t *cf)
 {
+    //printf("ngx_rtmp_core_module ngx_rtmp_core_create_app_conf\n");
     ngx_rtmp_core_app_conf_t   *conf;
 
     conf = ngx_pcalloc(cf->pool, sizeof(ngx_rtmp_core_app_conf_t));
@@ -321,6 +363,16 @@ ngx_rtmp_core_merge_app_conf(ngx_conf_t *cf, void *parent, void *child)
     (void)prev;
     (void)conf;
 
+    /*
+    printf("ngx_rtmp_core_module ngx_rtmp_core_merge_app_conf conf->error_log:%p, prev->error_log:%p\n", conf->error_log, prev->error_log);
+    if (conf->error_log == NULL) {
+        if (prev->error_log) {
+            conf->error_log = prev->error_log;
+        } else {
+            conf->error_log = &cf->cycle->new_log;
+        }
+    }
+    */
     return NGX_CONF_OK;
 }
 
@@ -752,4 +804,25 @@ ngx_rtmp_core_listen(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     }
 
     return NGX_CONF_OK;
+}
+
+static char *
+ngx_rtmp_core_error_log(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+{
+    //printf("ngx_rtmp_core_module ngx_rtmp_core_error_log conf:%p\n", conf);
+    /*
+    ngx_rtmp_core_app_conf_t *cacf = conf;
+    return ngx_log_set_log(cf, &cacf->error_log);
+    */
+    ngx_rtmp_core_srv_conf_t *cscf = conf;   
+    return ngx_log_set_log(cf, &cscf->error_log);
+}
+
+static char *
+ngx_rtmp_core_rtmp_log(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+{
+    //printf("ngx_rtmp_core_module ngx_rtmp_core_rtmp_log conf:%p\n", conf);
+
+    ngx_rtmp_core_srv_conf_t *cscf = conf;   
+    return ngx_log_set_log(cf, &cscf->rtmp_log);
 }

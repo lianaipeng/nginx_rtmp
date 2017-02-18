@@ -17,6 +17,7 @@ static u_char * ngx_rtmp_log_error(ngx_log_t *log, u_char *buf, size_t len);
 void
 ngx_rtmp_init_connection(ngx_connection_t *c)
 {
+    //printf("ngx_rtmp_init ngx_rtmp_init_connection\n");
     ngx_uint_t             i;
     ngx_rtmp_port_t       *port;
     struct sockaddr       *sa;
@@ -39,6 +40,7 @@ ngx_rtmp_init_connection(ngx_connection_t *c)
     port = c->listening->servers;
     unix_socket = 0;
 
+    //printf("ngx_rtmp_init %ld\n", port->naddrs);
     if (port->naddrs > 1) {
 
         /*
@@ -143,6 +145,7 @@ ngx_rtmp_init_connection(ngx_connection_t *c)
 ngx_rtmp_session_t *
 ngx_rtmp_init_session(ngx_connection_t *c, ngx_rtmp_addr_conf_t *addr_conf)
 {
+    //printf("ngx_rtmp_init ngx_rtmp_init_session\n");
     ngx_rtmp_session_t             *s;
     ngx_rtmp_core_srv_conf_t       *cscf;
     ngx_rtmp_error_log_ctx_t       *ctx;
@@ -160,7 +163,8 @@ ngx_rtmp_init_session(ngx_connection_t *c, ngx_rtmp_addr_conf_t *addr_conf)
     s->srv_conf = addr_conf->ctx->srv_conf;
 
     s->addr_text = &addr_conf->addr_text;
-
+    //printf("ngx_rtmp_init ngx_rtmp_init_session# %s\n", addr_conf->addr_text.data);
+    
     c->data = s;
     s->connection = c;
 
@@ -172,12 +176,19 @@ ngx_rtmp_init_session(ngx_connection_t *c, ngx_rtmp_addr_conf_t *addr_conf)
 
     ctx->client = &c->addr_text;
     ctx->session = s;
+    //printf("ngx_rtmp_init ngx_rtmp_init_session# %s\n", c->addr_text.data);
 
+    //printf("ngx_rtmp_init ngx_rtmp_init_session INITLOG\n");
     c->log->connection = c->number;
     c->log->handler = ngx_rtmp_log_error;
     c->log->data = ctx;
     c->log->action = NULL;
-
+    
+    c->rtmp_log->connection = c->number;
+    c->rtmp_log->handler = ngx_rtmp_log_error;
+    c->rtmp_log->data = ctx;
+    c->rtmp_log->action = NULL;
+    
     c->log_error = NGX_ERROR_INFO;
 
     s->ctx = ngx_pcalloc(c->pool, sizeof(void *) * ngx_rtmp_max_module);
@@ -187,6 +198,14 @@ ngx_rtmp_init_session(ngx_connection_t *c, ngx_rtmp_addr_conf_t *addr_conf)
     }
 
     cscf = ngx_rtmp_get_module_srv_conf(s, ngx_rtmp_core_module);
+    /*
+    // 重定向error_log
+    ngx_rtmp_core_app_conf_t       *cacf;
+    cacf = ngx_rtmp_get_module_app_conf(s, ngx_rtmp_core_module);
+    ngx_set_connection_log(s->connection, cacf->error_log);
+    */
+    ngx_set_connection_log(s->connection, cscf->error_log);
+    ngx_set_connection_rtmplog(s->connection, cscf->rtmp_log);
 
     s->out_queue = cscf->out_queue;
     s->out_cork = cscf->out_cork;

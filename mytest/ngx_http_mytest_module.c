@@ -232,8 +232,10 @@ ngx_module_t  ngx_http_mytest_module =
 // ngx_command_t中的set成员，当在某个配置块中出现mytest配置项时，调用该方法
 static char * ngx_http_mytest(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)  
 {  
+    //printf("ngx_http_mytest name:%s, args:%s, nelts:%ld, size:%ld\n", cf->name, (char *)cf->args->elts, cf->args->nelts, cf->args->size);
     ngx_http_core_loc_conf_t  *clcf;  
        
+    //ngx_log_error(NGX_LOG_ERR, cf->log, 0 ,"#######IIII#######");
     //首先找到mytest配置项所属的配置块，clcf貌似是location块内的数据  
     //结构，其实不然，它可以是main、srv或者loc级别配置项，也就是说在每个  
     //http{}和server{}内也都有一个ngx_http_core_loc_conf_t结构体  
@@ -255,6 +257,8 @@ static ngx_int_t ngx_http_mytest_json_handler(ngx_http_request_t *r)
     {  
         return NGX_HTTP_NOT_ALLOWED;  
     }  
+
+    ngx_log_error(NGX_LOG_ERR, r->connection->log, 0 ,"#######DDD#######");
 
     //丢弃请求中的包体  
     ngx_int_t rc = ngx_http_discard_request_body(r);  

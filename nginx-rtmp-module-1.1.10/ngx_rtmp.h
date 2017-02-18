@@ -329,6 +329,9 @@ typedef struct ngx_rtmp_core_srv_conf_s {
     ngx_msec_t              buflen;
 
     ngx_rtmp_conf_ctx_t    *ctx;
+
+    ngx_log_t              *error_log;
+    ngx_log_t              *rtmp_log;
 } ngx_rtmp_core_srv_conf_t;
 
 

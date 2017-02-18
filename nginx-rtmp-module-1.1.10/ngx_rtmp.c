@@ -83,6 +83,7 @@ ngx_module_t  ngx_rtmp_module = {
 static char *
 ngx_rtmp_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
+    //printf("ngx_rtmp ngx_rtmp_block\n");
     char                        *rv;
     ngx_uint_t                   i, m, mi, s;
     ngx_conf_t                   pcf;
@@ -327,6 +328,7 @@ ngx_rtmp_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     listen = cmcf->listen.elts;
 
     for (i = 0; i < cmcf->listen.nelts; i++) {
+        //printf("ngx_init ngx_rtmp_block\n");
         if (ngx_rtmp_add_ports(cf, &ports, &listen[i]) != NGX_OK) {
             return NGX_CONF_ERROR;
         }
@@ -340,6 +342,7 @@ static char *
 ngx_rtmp_merge_applications(ngx_conf_t *cf, ngx_array_t *applications,
             void **app_conf, ngx_rtmp_module_t *module, ngx_uint_t ctx_index)
 {
+    //printf("ngx_rtmp ngx_rtmp_merge_applications\n");
     char                           *rv;
     ngx_rtmp_conf_ctx_t            *ctx, saved;
     ngx_rtmp_core_app_conf_t      **cacfp;
@@ -382,6 +385,7 @@ ngx_rtmp_merge_applications(ngx_conf_t *cf, ngx_array_t *applications,
 static ngx_int_t
 ngx_rtmp_init_events(ngx_conf_t *cf, ngx_rtmp_core_main_conf_t *cmcf)
 {
+    //printf("ngx_rtmp ngx_rtmp_init_events\n");
     size_t                      n;
 
     for(n = 0; n < NGX_RTMP_MAX_EVENT; ++n) {
@@ -405,6 +409,7 @@ ngx_rtmp_init_events(ngx_conf_t *cf, ngx_rtmp_core_main_conf_t *cmcf)
 static ngx_int_t
 ngx_rtmp_init_event_handlers(ngx_conf_t *cf, ngx_rtmp_core_main_conf_t *cmcf)
 {
+    //printf("ngx_rtmp ngx_rtmp_init_event_handlers\n");
     ngx_hash_init_t             calls_hash;
     ngx_rtmp_handler_pt        *eh;
     ngx_rtmp_amf_handler_t     *h;
@@ -498,6 +503,7 @@ static ngx_int_t
 ngx_rtmp_add_ports(ngx_conf_t *cf, ngx_array_t *ports,
     ngx_rtmp_listen_t *listen)
 {
+    //printf("ngx_rtmp ngx_rtmp_add_ports\n");
     in_port_t              p;
     ngx_uint_t             i;
     struct sockaddr       *sa;
@@ -583,6 +589,7 @@ found:
 static char *
 ngx_rtmp_optimize_servers(ngx_conf_t *cf, ngx_array_t *ports)
 {
+    //printf("ngx_rtmp ngx_rtmp_optimize_servers\n");
     ngx_uint_t             i, p, last, bind_wildcard;
     ngx_listening_t       *ls;
     ngx_rtmp_port_t       *mport;
@@ -688,6 +695,7 @@ static ngx_int_t
 ngx_rtmp_add_addrs(ngx_conf_t *cf, ngx_rtmp_port_t *mport,
     ngx_rtmp_conf_addr_t *addr)
 {
+    //printf("ngx_rtmp ngx_rtmp_add_addrs\n");
     u_char              *p;
     size_t               len;
     ngx_uint_t           i;
@@ -787,6 +795,7 @@ ngx_rtmp_add_addrs6(ngx_conf_t *cf, ngx_rtmp_port_t *mport,
 static ngx_int_t
 ngx_rtmp_cmp_conf_addrs(const void *one, const void *two)
 {
+    //printf("ngx_rtmp ngx_rtmp_cmp_conf_addrs\n");
     ngx_rtmp_conf_addr_t  *first, *second;
 
     first = (ngx_rtmp_conf_addr_t *) one;
@@ -817,6 +826,7 @@ ngx_int_t
 ngx_rtmp_fire_event(ngx_rtmp_session_t *s, ngx_uint_t evt,
         ngx_rtmp_header_t *h, ngx_chain_t *in)
 {
+    //printf("ngx_rtmp ngx_rtmp_fire_event\n");
     ngx_rtmp_core_main_conf_t      *cmcf;
     ngx_array_t                    *ch;
     ngx_rtmp_handler_pt            *hh;
@@ -838,6 +848,7 @@ ngx_rtmp_fire_event(ngx_rtmp_session_t *s, ngx_uint_t evt,
 void *
 ngx_rtmp_rmemcpy(void *dst, const void* src, size_t n)
 {
+    //printf("ngx_rtmp ngx_rtmp_rmemcpy\n");
     u_char     *d, *s;
 
     d = dst;
@@ -854,6 +865,7 @@ ngx_rtmp_rmemcpy(void *dst, const void* src, size_t n)
 static ngx_int_t
 ngx_rtmp_init_process(ngx_cycle_t *cycle)
 {
+    //printf("ngx_rtmp ngx_rtmp_init_process\n");
 #if (nginx_version >= 1007005)
     ngx_queue_init(&ngx_rtmp_init_queue);
 #endif
