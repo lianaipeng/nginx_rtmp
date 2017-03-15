@@ -161,7 +161,6 @@ static ngx_int_t
 ngx_rtmp_codec_disconnect(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
         ngx_chain_t *in)
 {
-    printf("ngx_rtmp_codec_module ngx_rtmp_codec_disconnect\n");
     ngx_rtmp_codec_ctx_t               *ctx;
     ngx_rtmp_core_srv_conf_t           *cscf;
 

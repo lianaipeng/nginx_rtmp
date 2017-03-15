@@ -234,6 +234,12 @@ struct ngx_rtmp_live_app_conf_s{
     ngx_str_t                           relay_cache_file;       // 手动控制转推 的标志文件位置
     ngx_event_t                         relay_cache_event;      // 监控手动转推是否开启
     ngx_flag_t                          relay_cache_ctrl;       // 监控到的转推状态
+    
+    // SWITCH
+    ngx_rtmp_live_ctx_t                 *rctx; // 当前转推ctx的头
+    ngx_rtmp_live_ctx_t                 *lctx; // 当前挂载转推的ctx的头
+    ngx_uint_t                          nrelayer;
+    ngx_uint_t                          mount;  // 只能有一个mount 
 };
 
 #define RELAY_CACHE_FILE_LEN 256

@@ -56,6 +56,12 @@ nxg_rtmp_live_relay_cache_poll(ngx_event_t *ev);
 static void 
 ngx_rtmp_stream_codec_ctx_copy(ngx_rtmp_codec_ctx_t *codec_ctx, ngx_rtmp_live_stream_t *stream);
 
+ngx_int_t 
+ngx_rtmp_live_rctx_unmount(ngx_rtmp_live_app_conf_t *lacf);
+ngx_int_t
+ngx_rtmp_live_rctx_remove(ngx_rtmp_live_app_conf_t *lacf, ngx_rtmp_live_ctx_t *rctx);
+ngx_int_t
+ngx_rtmp_live_rctx_append(ngx_rtmp_live_app_conf_t *lacf, ngx_rtmp_live_ctx_t *rctx);
 
 
 static ngx_command_t  ngx_rtmp_live_commands[] = {
@@ -201,8 +207,8 @@ static ngx_command_t  ngx_rtmp_live_commands[] = {
         NGX_RTMP_APP_CONF_OFFSET,
         offsetof(ngx_rtmp_live_app_conf_t, relay_cache_file),
         NULL  },
-    
-      ngx_null_command
+
+    ngx_null_command
 };
 
 
@@ -266,14 +272,12 @@ ngx_rtmp_live_create_app_conf(ngx_conf_t *cf)
     lacf->publish_delay_close = NGX_CONF_UNSET;
     lacf->publish_delay_close_len = NGX_CONF_UNSET;
     
-
     lacf->push_reconnect = NGX_CONF_UNSET_MSEC;
     lacf->stream_push_reconnect = NGX_CONF_UNSET_MSEC;
-
+    
     // 手动开启转推是否开启
     lacf->relay_cache  = NGX_CONF_UNSET;
     lacf->relay_cache_poll_len = NGX_CONF_UNSET_MSEC;
-    
 
     return lacf;
 }
@@ -307,10 +311,9 @@ ngx_rtmp_live_merge_app_conf(ngx_conf_t *cf, void *parent, void *child)
     ngx_conf_merge_msec_value(conf->stream_push_reconnect, prev->stream_push_reconnect, 3000);
 
     // 手动开启转推
-    ngx_conf_merge_value(conf->push_cache, prev->push_cache, 0);
+    ngx_conf_merge_value(conf->relay_cache, prev->relay_cache, 0);
     ngx_conf_merge_msec_value(conf->relay_cache_poll_len, prev->relay_cache_poll_len, 2000);
 
-    
     conf->pool = ngx_create_pool(4096, &cf->cycle->new_log);
     if (conf->pool == NULL) {
         return NGX_CONF_ERROR;
@@ -349,7 +352,7 @@ ngx_rtmp_live_set_msec_slot(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 static ngx_rtmp_live_stream_t **
 ngx_rtmp_live_get_stream(ngx_rtmp_session_t *s, u_char *name, int create)
 {
-    //printf("ngx_rtmp_live_module ngx_rtmp_live_get_stream\n");
+    //printf("ngx_rtmp_live_module ngx_rtmp_live_get_stream name:%s\n", name);
     ngx_rtmp_live_app_conf_t   *lacf;
     ngx_rtmp_live_stream_t    **stream;
     size_t                      len;
@@ -526,7 +529,7 @@ ngx_rtmp_live_start(ngx_rtmp_session_t *s)
     size_t                      n, nstatus;
 
     cscf = ngx_rtmp_get_module_srv_conf(s, ngx_rtmp_core_module);
-
+    
     lacf = ngx_rtmp_get_module_app_conf(s, ngx_rtmp_live_module);
 
     control = ngx_rtmp_create_stream_begin(s, NGX_RTMP_MSID);
@@ -645,10 +648,11 @@ next:
 static void
 ngx_rtmp_live_join(ngx_rtmp_session_t *s, u_char *name, unsigned publisher)
 {
-    //printf("ngx_rtmp_live_module ngx_rtmp_live_join\n");
+    //printf("ngx_rtmp_live_module ngx_rtmp_live_join publisher:%d relay:%d name:%s\n", publisher, s->relay, name);
     ngx_rtmp_live_ctx_t            *ctx;
     ngx_rtmp_live_stream_t        **stream;
     ngx_rtmp_live_app_conf_t       *lacf;
+    ngx_rtmp_core_srv_conf_t       *cscf;
 
     lacf = ngx_rtmp_get_module_app_conf(s, ngx_rtmp_live_module);
     if (lacf == NULL) {
@@ -706,13 +710,34 @@ ngx_rtmp_live_join(ngx_rtmp_session_t *s, u_char *name, unsigned publisher)
 
         (*stream)->publishing = 1;
     }
-    
+    /* old code 
+        ctx->stream = *stream;
+        ctx->publishing = publisher;
+        ctx->next = (*stream)->ctx;
+
+        (*stream)->ctx = ctx;
+     */
     ctx->stream = *stream;
     ctx->publishing = publisher;
-    ctx->next = (*stream)->ctx;
-
-    (*stream)->ctx = ctx;
-
+     
+    // APPEND
+    cscf = ngx_rtmp_get_module_srv_conf(s, ngx_rtmp_core_module); 
+    ctx->next = NULL;
+    if ( cscf && cscf->push_switch ) {
+        if( s->relay ){
+            ngx_rtmp_live_rctx_append(lacf, ctx);
+        } else {
+            ctx->next = (*stream)->ctx;
+            (*stream)->ctx = ctx;
+        }
+            
+        if ( publisher )
+            ngx_rtmp_relay_add_switch(cscf, name, 0);
+    } else {
+        ctx->next = (*stream)->ctx;
+        (*stream)->ctx = ctx;
+    }
+    
     if (lacf->buflen) {
         s->out_buffer = 1;
     }
@@ -888,10 +913,10 @@ static ngx_int_t
 ngx_rtmp_live_close_stream(ngx_rtmp_session_t *s, ngx_rtmp_close_stream_t *v)
 {
     printf("ngx_rtmp_live_module ngx_rtmp_live_close_stream\n");
-    //ngx_rtmp_session_t             *ss;
     ngx_rtmp_live_ctx_t            *ctx, **cctx;//, *pctx;
     ngx_rtmp_live_stream_t        **stream;
     ngx_rtmp_live_app_conf_t       *lacf;
+    ngx_rtmp_core_srv_conf_t       *cscf;
 
     lacf = ngx_rtmp_get_module_app_conf(s, ngx_rtmp_live_module);
     if (lacf == NULL) {
@@ -915,14 +940,35 @@ ngx_rtmp_live_close_stream(ngx_rtmp_session_t *s, ngx_rtmp_close_stream_t *v)
     if (ctx->stream->publishing && ctx->publishing) {
         ctx->stream->publishing = 0;
     }
+   
+    // APPEND 
+    // 如果开启switch功能，关闭流的时候，清除ctx
+    cscf = ngx_rtmp_get_module_srv_conf(s, ngx_rtmp_core_module);
+    if( cscf && cscf->push_switch ){
+        if (s->relay) {
+            ngx_rtmp_live_rctx_remove(lacf, ctx);
+        }
+         
+        // 只有关闭publish 并且该publish处于挂载状态  卸载转推
+        if(s->mount==1 && ctx->publishing) {
+            ngx_rtmp_live_rctx_unmount(lacf);
+        }
+        
+        if(ctx->publishing) {
+            ngx_rtmp_relay_del_switch(cscf, ctx->stream->name);
+        }
+    }
+    
+     
     // 找到 ctx 对应的地址  并且从队列中删除之
     for (cctx = &ctx->stream->ctx; *cctx; cctx = &(*cctx)->next) {
         if (*cctx == ctx) {
+            //printf("ngx_rtmp_live_module ngx_rtmp_live_close_stream  nrelayer:%ld ctx:%p\n", lacf->nrelayer, ctx);
             *cctx = ctx->next;
             break;
         }
     }
-    
+     
     // stream 状态置空 
     if (ctx->publishing || ctx->stream->active) {
         ngx_rtmp_live_stop(s);
@@ -949,7 +995,7 @@ ngx_rtmp_live_close_stream(ngx_rtmp_session_t *s, ngx_rtmp_close_stream_t *v)
                 pct->has_closed = 1;
             } 
                       
-            printf("publish close idle_streams:%ld delay_close:%ld ctx:%p cache_head:%p\n", lacf->idle_streams, lacf->publish_delay_close, ctx->stream->ctx, ctx->stream->push_cache_head);
+            //printf("publish close idle_streams:%ld delay_close:%ld ctx:%p cache_head:%p\n", lacf->idle_streams, lacf->publish_delay_close, ctx->stream->ctx, ctx->stream->push_cache_head);
             // 开启缓存：
             // 0.关闭清空延时： 
             //     0. 没有dump缓存时，清空混存，并且无ctx时，释放stream结构体。
@@ -990,7 +1036,7 @@ ngx_rtmp_live_close_stream(ngx_rtmp_session_t *s, ngx_rtmp_close_stream_t *v)
                 }
             }
         } else {
-            printf("play close idle_streams:%ld delay_close:%ld ctx:%p cache_head:%p\n", lacf->idle_streams, lacf->publish_delay_close, ctx->stream->ctx, ctx->stream->push_cache_head);
+            //printf("play close idle_streams:%ld delay_close:%ld ctx:%p cache_head:%p\n", lacf->idle_streams, lacf->publish_delay_close, ctx->stream->ctx, ctx->stream->push_cache_head);
             // 当publish不存在，play链接进来之后，又关闭。也需要清空stream
             if( !ctx->stream->ctx ){
                 // 当publish_delay_close＝true 此时有两种情况不能清空：
@@ -1138,6 +1184,14 @@ ngx_rtmp_live_av_to_net(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
     if (ctx == NULL || ctx->stream == NULL) {
         return NGX_OK;
     }
+    /*
+    printf("ngx_rtmp_live_module ngx_rtmp_live_av_to_net name:%s\n", ctx->stream->name);
+    if( 0==ngx_strncmp(ctx->stream->name, "123456", ngx_strlen(ctx->stream->name)) ){
+        return NGX_OK;
+    }
+    */
+
+
     // 非主播模式退出
     if (ctx->publishing == 0) {
         ngx_log_debug1(NGX_LOG_DEBUG_RTMP, s->connection->log, 0,
@@ -1280,20 +1334,26 @@ ngx_rtmp_live_av_to_net(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
 
     /* broadcast to all subscribers */
     // 下一个流的上下文 
+    //ngx_uint_t counter = 0;
     for (pctx = ctx->stream->ctx; pctx; pctx = pctx->next) {
+        
         if (pctx == ctx || pctx->paused) {
             continue;
         }
             
         ss = pctx->session;
         cs = &pctx->cs[csidx];
-
+        /* 
+        ngx_rtmp_live_av_to_session(ss,);
+        goto next;
+        */
+         
         /* send metadata */
         if (meta && meta_version != pctx->meta_version) {
             ngx_log_debug0(NGX_LOG_DEBUG_RTMP, ss->connection->log, 0,
-                           "live: meta");
-        
-             if (ngx_rtmp_send_message(ss, meta, 0) == NGX_OK) {
+                    "live: meta");
+            printf("ngx_rtmp_live_module ngx_rtmp_live_av_to_net ss:%p\n", ss);
+            if (ngx_rtmp_send_message(ss, meta, 0) == NGX_OK) {
                 // 改变状态
                 pctx->meta_version = meta_version;
             }
@@ -1449,7 +1509,9 @@ ngx_rtmp_live_av_to_net(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
         }
         ss->current_time = cs->timestamp;
     }
-
+/*
+next:
+*/
     if (rpkt) {
         ngx_rtmp_free_shared_chain(cscf, rpkt);
     }
@@ -1482,6 +1544,15 @@ ngx_rtmp_live_av_to_net(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
 
     return NGX_OK;
 } // end ngx_rtmp_live_av_to_net
+
+/*
+ngx_uint_t
+ngx_rtmp_live_av_to_session(ngx_rtmp_session_t *ss)
+{
+       
+    return NGX_OK;
+}
+*/
 
 void
 ngx_rtmp_prepare_message_with_cache(ngx_rtmp_live_stream_t *stream, ngx_rtmp_header_t *h,
@@ -2322,6 +2393,135 @@ ngx_rtmp_live_bandwidth_tochar(ngx_uint_t bandwidth, u_char * buf, size_t size)
     //printf("ngx_rtmp_live_module ngx_rtmp_live_bandwidth_tochar:%ld, %s\n", bandwidth, buf);
 }
 
+
+ngx_int_t
+ngx_rtmp_live_rctx_append(ngx_rtmp_live_app_conf_t *lacf, ngx_rtmp_live_ctx_t *rctx)
+{
+    //printf("ngx_rtmp_live_module ngx_rtmp_live_rctx_append\n");
+    ngx_rtmp_live_ctx_t            **prctx;
+    
+    if ( !lacf || !rctx )
+        return NGX_ERROR;
+    
+    // 卸载所有转推的rctx  需要重新挂载
+    ngx_rtmp_live_rctx_unmount(lacf);
+    
+    // 插入新的rctx
+    prctx = &lacf->rctx;
+    while( *prctx ){
+        prctx = &(*prctx)->next;
+    }
+    *prctx = rctx;
+    lacf->nrelayer += 1;
+     
+    return NGX_OK;
+}
+
+ngx_int_t
+ngx_rtmp_live_rctx_remove(ngx_rtmp_live_app_conf_t *lacf, ngx_rtmp_live_ctx_t *rctx)
+{
+    //printf("ngx_rtmp_live_module ngx_rtmp_live_rctx_remove\n");
+    ngx_rtmp_live_ctx_t            **prctx;
+
+    if ( !lacf || !rctx )
+        return NGX_ERROR;
+
+    // 卸载所有转推的ctx  需要重新挂载
+    ngx_rtmp_live_rctx_unmount(lacf);
+
+    // 移除断开的 转推链接 
+    prctx = &lacf->rctx;
+    for(; *prctx ; prctx=&(*prctx)->next ){
+        if (*prctx == rctx ){
+            *prctx = (*prctx)->next;
+            lacf->nrelayer -= 1;
+            break;
+        }
+    }
+
+    return NGX_OK;
+}
+ngx_int_t
+ngx_rtmp_live_rctx_close(ngx_rtmp_live_app_conf_t *lacf, ngx_rtmp_session_t *s)
+{
+    ngx_rtmp_live_ctx_t            *rctx;
+    ngx_rtmp_session_t              *ss;
+    if(!lacf || !s || s->mount==0)
+        return NGX_ERROR;
+
+    // 卸载转推rctx
+    ngx_rtmp_live_rctx_unmount(lacf);
+     
+    // 关闭所有的rctx。新的推流会重新建立 
+    for(rctx=lacf->rctx; rctx ; rctx = rctx->next){
+        ss = rctx->session;
+        printf("ngx_rtmp_live_module ngx_rtmp_live_rctx_close session:%p\n", ss);
+        if(ss)
+            ngx_rtmp_finalize_session(ss);
+    }
+    
+    return NGX_OK;
+}
+
+ngx_int_t 
+ngx_rtmp_live_rctx_unmount(ngx_rtmp_live_app_conf_t *lacf)
+{
+    //printf("ngx_rtmp_live_module ngx_rtmp_live_rctx_unmount\n");
+    ngx_rtmp_live_ctx_t            **cctx;//, *pctx;
+    
+    if ( !lacf || !lacf->rctx )
+        return NGX_ERROR;
+
+    // 找到推流ctx链表中 挂载rctx的位置 并卸载
+    for (cctx = &lacf->lctx; *cctx; cctx = &(*cctx)->next) {
+        if (*cctx == lacf->rctx){
+            // 挂载标志 重置
+            if(lacf->lctx && lacf->lctx->session)
+                lacf->lctx->session->mount = 0;
+            
+            // 卸载之后指向publish ctx头部的指针置空
+            lacf->lctx = NULL;
+            // 避免同时多个publish同时操作rctx链表
+            lacf->mount = 0;
+            
+            // 卸载转推
+            *cctx = NULL;
+            break;
+        }
+    }
+    
+    return NGX_OK;    
+}
+
+ngx_int_t
+ngx_rtmp_live_rctx_mount(ngx_rtmp_live_app_conf_t *lacf, ngx_rtmp_session_t *s, ngx_rtmp_live_ctx_t *ctx)
+{
+    //printf("ngx_rtmp_live_module ngx_rtmp_live_rctx_mount\n");
+    ngx_rtmp_live_ctx_t              **ppctx;
+    if ( !ctx || !ctx->stream || !lacf)
+        return NGX_ERROR;
+
+    // 如果该流已经挂载 就不需要重复挂载
+    if( s->mount || lacf->mount )
+        return NGX_OK;
+
+    // 找到链表尾部 挂载转推ctx 
+    for (ppctx = &(ctx->stream->ctx); *ppctx ; ppctx=&(*ppctx)->next) {}
+
+    if ( lacf->rctx ) {
+        // 存储该publish的 ctx链表头
+        lacf->lctx = ctx->stream->ctx;
+        // 改变挂载状态 
+        lacf->mount = 1;
+
+        // 将转推链接挂挂载 在尾部
+        *ppctx = lacf->rctx; 
+        // 修改该session 为挂载状态 
+        s->mount = 1;
+    }
+    return NGX_OK;
+}
+
 static ngx_int_t
 ngx_rtmp_live_av(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
                  ngx_chain_t *in)
@@ -2331,13 +2531,25 @@ ngx_rtmp_live_av(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
     
     ngx_rtmp_live_app_conf_t       *lacf;
     ngx_rtmp_live_ctx_t            *ctx;
+    ngx_rtmp_core_srv_conf_t       *cscf;
     lacf = ngx_rtmp_get_module_app_conf(s, ngx_rtmp_live_module);
     
     ctx = ngx_rtmp_get_module_ctx(s, ngx_rtmp_live_module);
     if (ctx == NULL || !ctx->publishing) {
         return ret;   
     }
-     
+    
+    // 从多个流中选择一路流
+    cscf = ngx_rtmp_get_module_srv_conf(s, ngx_rtmp_core_module); 
+    if ( cscf && cscf->push_switch ) {
+        if (ngx_rtmp_relay_ison_switch(cscf, ctx->stream->name) == NGX_OK){
+            ngx_rtmp_live_rctx_mount(lacf, s, ctx);
+        } else {
+            ngx_rtmp_live_rctx_close(lacf, s);
+        }
+    }
+    
+    
     // 推流断开重连事件
     if (ctx->idle_evt.timer_set) {
         ngx_add_timer(&ctx->idle_evt, lacf->idle_timeout);
@@ -2359,7 +2571,7 @@ ngx_rtmp_live_av(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
     } else {
         ret = ngx_rtmp_live_av_to_net(s, h, in);
     }
-
+    
     // STREAM_STATE  publish状态详情（兼容publish断开时显示）
     if( !ctx->stream->codec_ctx.is_init ) {
         ngx_rtmp_stream_publish_header_copy(s, &ctx->stream->codec_ctx, ctx->stream, lacf->push_cache);
@@ -2384,9 +2596,14 @@ ngx_rtmp_live_av(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
         ngx_rtmp_live_bandwidth_tochar(ctx->stream->bw_in_video.bandwidth, video_buf, sizeof(video_buf));
         ngx_rtmp_live_bandwidth_tochar(ctx->stream->bw_in_audio.bandwidth, audio_buf, sizeof(audio_buf));
         
+        ngx_log_error(NGX_LOG_INFO, s->connection->log, 0, 
+                ",error LIVEAV:%p, timestamp:%uL stream_name:%s bw_in_video:%s bw_in_audio:%s frame_rate:%uL sample_rate:%uL channels:%uL", 
+                s->connection->log, log_cts, ctx->stream->name, video_buf, audio_buf, codec->frame_rate, codec->sample_rate, codec->audio_channels);
+        
         ngx_log_error(NGX_LOG_INFO, s->connection->rtmp_log, 0, 
-                ",LIVEAV, timestamp:%uL stream_name:%s bw_in_video:%s bw_in_audio:%s frame_rate:%uL sample_rate:%uL channels:%uL", 
-                log_cts, ctx->stream->name, video_buf, audio_buf, codec->frame_rate, codec->sample_rate, codec->audio_channels);
+                ",rtmp LIVEAV:%p, timestamp:%uL stream_name:%s bw_in_video:%s bw_in_audio:%s frame_rate:%uL sample_rate:%uL channels:%uL", 
+                s->connection->rtmp_log,log_cts, ctx->stream->name, video_buf, audio_buf, codec->frame_rate, codec->sample_rate, codec->audio_channels);
+        
         ctx->stream->log_lts = log_cts;
     }
      
@@ -2396,7 +2613,10 @@ ngx_rtmp_live_av(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
 static ngx_int_t
 ngx_rtmp_live_publish(ngx_rtmp_session_t *s, ngx_rtmp_publish_t *v)
 {
-    //printf("ngx_rtmp_live_module ngx_rtmp_live_publish\n");
+    //printf("ngx_rtmp_live_module ngx_rtmp_live_publish name:%s\n", v->name);
+    // relay_module 使用           
+    s->publishing = 1;
+
     ngx_rtmp_live_app_conf_t       *lacf;
     ngx_rtmp_live_ctx_t            *ctx;
 
@@ -2443,6 +2663,7 @@ ngx_rtmp_live_publish(ngx_rtmp_session_t *s, ngx_rtmp_publish_t *v)
         
         ngx_memcpy(&ctx->stream->publish, v, sizeof(ngx_rtmp_publish_t));
     }
+    
 next:
     return next_publish(s, v);
 }
@@ -2451,12 +2672,15 @@ next:
 static ngx_int_t
 ngx_rtmp_live_play(ngx_rtmp_session_t *s, ngx_rtmp_play_t *v)
 {
-    //printf("ngx_rtmp_live_module ngx_rtmp_live_play v->name:%s\n", v->name);
+    //printf("ngx_rtmp_live_module ngx_rtmp_live_play relay:%d v->name:%s\n", s->relay, v->name);
+    // relay_module 使用           
+    s->publishing = 0;  
+         
     ngx_rtmp_live_app_conf_t       *lacf;
     ngx_rtmp_live_ctx_t            *ctx;
-
+    
     lacf = ngx_rtmp_get_module_app_conf(s, ngx_rtmp_live_module);
-
+    
     if (lacf == NULL || !lacf->live) {
         goto next;
     }
@@ -2465,11 +2689,11 @@ ngx_rtmp_live_play(ngx_rtmp_session_t *s, ngx_rtmp_play_t *v)
                    "live: play: name='%s' start=%uD duration=%uD reset=%d",
                    v->name, (uint32_t) v->start,
                    (uint32_t) v->duration, (uint32_t) v->reset);
-
+    
     /* join stream as subscriber */
-
+    
     ngx_rtmp_live_join(s, v->name, 0);
-
+    
     ctx = ngx_rtmp_get_module_ctx(s, ngx_rtmp_live_module);
     if (ctx == NULL) {
         goto next;

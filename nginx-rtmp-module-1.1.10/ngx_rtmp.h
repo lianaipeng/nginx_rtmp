@@ -266,6 +266,9 @@ typedef struct {
     size_t                  out_queue;
     size_t                  out_cork;
     ngx_chain_t            *out[0];
+
+    unsigned                mount:1;  // 是否挂载转推的ctx
+    unsigned                publishing:1;
 } ngx_rtmp_session_t;
 
 
@@ -332,6 +335,11 @@ typedef struct ngx_rtmp_core_srv_conf_s {
 
     ngx_log_t              *error_log;
     ngx_log_t              *rtmp_log;
+
+    ngx_flag_t              push_switch;
+    ngx_msec_t              push_switch_poll_len;
+    ngx_str_t               push_switch_file;
+    ngx_str_t               push_switch_name;
 } ngx_rtmp_core_srv_conf_t;
 
 

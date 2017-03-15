@@ -181,6 +181,31 @@ static ngx_command_t  ngx_rtmp_core_commands[] = {
       offsetof(ngx_rtmp_core_srv_conf_t, buflen),
       NULL },
 
+    { ngx_string("push_switch"),
+      NGX_RTMP_MAIN_CONF|NGX_RTMP_SRV_CONF|NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_RTMP_SRV_CONF_OFFSET,
+      offsetof(ngx_rtmp_core_srv_conf_t, push_switch),
+      NULL },
+    { ngx_string("push_switch_poll_len"),
+      NGX_RTMP_MAIN_CONF|NGX_RTMP_SRV_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_msec_slot,
+      NGX_RTMP_SRV_CONF_OFFSET,
+      offsetof(ngx_rtmp_core_srv_conf_t, push_switch_poll_len),
+      NULL },
+    { ngx_string("push_switch_name"),
+      NGX_RTMP_MAIN_CONF|NGX_RTMP_SRV_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_RTMP_SRV_CONF_OFFSET,
+      offsetof(ngx_rtmp_core_srv_conf_t, push_switch_name),
+      NULL  },
+    { ngx_string("push_switch_file"),
+      NGX_RTMP_MAIN_CONF|NGX_RTMP_SRV_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_RTMP_SRV_CONF_OFFSET,
+      offsetof(ngx_rtmp_core_srv_conf_t, push_switch_file),
+      NULL  },
+
       ngx_null_command
 };
 
@@ -274,6 +299,8 @@ ngx_rtmp_core_create_srv_conf(ngx_conf_t *cf)
     conf->buflen = NGX_CONF_UNSET_MSEC;
     conf->busy = NGX_CONF_UNSET;
 
+    conf->push_switch = NGX_CONF_UNSET;
+    conf->push_switch_poll_len = NGX_CONF_UNSET_MSEC;
     return conf;
 }
 
@@ -311,7 +338,6 @@ ngx_rtmp_core_merge_srv_conf(ngx_conf_t *cf, void *parent, void *child)
 
     conf->pool = prev->pool;
 
-    //printf("ngx_rtmp_core_module ngx_rtmp_core_merge_srv_conf conf->error_log:%p, prev->error_log:%p\n", conf->error_log, prev->error_log);
     if (conf->error_log == NULL) {
         if (prev->error_log) {
             conf->error_log = prev->error_log;
@@ -326,6 +352,21 @@ ngx_rtmp_core_merge_srv_conf(ngx_conf_t *cf, void *parent, void *child)
         } else {
             conf->rtmp_log = &cf->cycle->new_log;
         }
+    }
+    
+    ngx_conf_merge_value(conf->push_switch , prev->push_switch, 0);
+    ngx_conf_merge_msec_value(conf->push_switch_poll_len, prev->push_switch_poll_len, 2000);
+    
+    
+    if (conf->push_switch_name.len == 0) {
+        if (prev->push_switch_name.len > 0) {
+            ngx_memcpy(&conf->push_switch_name, &prev->push_switch_name, sizeof(ngx_str_t));        
+        }   
+    }
+    if (conf->push_switch_file.len == 0) {
+        if (prev->push_switch_file.len > 0) {
+            ngx_memcpy(&conf->push_switch_file, &prev->push_switch_file, sizeof(ngx_str_t));        
+        }   
     }
     
     return NGX_CONF_OK;

@@ -1028,6 +1028,7 @@ ngx_close_listening_sockets(ngx_cycle_t *cycle)
 ngx_connection_t *
 ngx_get_connection(ngx_socket_t s, ngx_log_t *log)
 {
+    //printf("ngx_connection ngx_get_connection\n");
     ngx_uint_t         instance;
     ngx_event_t       *rev, *wev;
     ngx_connection_t  *c;

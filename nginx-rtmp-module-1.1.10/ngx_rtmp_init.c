@@ -163,7 +163,6 @@ ngx_rtmp_init_session(ngx_connection_t *c, ngx_rtmp_addr_conf_t *addr_conf)
     s->srv_conf = addr_conf->ctx->srv_conf;
 
     s->addr_text = &addr_conf->addr_text;
-    //printf("ngx_rtmp_init ngx_rtmp_init_session# %s\n", addr_conf->addr_text.data);
     
     c->data = s;
     s->connection = c;
@@ -176,14 +175,13 @@ ngx_rtmp_init_session(ngx_connection_t *c, ngx_rtmp_addr_conf_t *addr_conf)
 
     ctx->client = &c->addr_text;
     ctx->session = s;
-    //printf("ngx_rtmp_init ngx_rtmp_init_session# %s\n", c->addr_text.data);
 
     //printf("ngx_rtmp_init ngx_rtmp_init_session INITLOG\n");
     c->log->connection = c->number;
     c->log->handler = ngx_rtmp_log_error;
     c->log->data = ctx;
     c->log->action = NULL;
-    
+     
     c->rtmp_log->connection = c->number;
     c->rtmp_log->handler = ngx_rtmp_log_error;
     c->rtmp_log->data = ctx;
@@ -238,6 +236,7 @@ ngx_rtmp_init_session(ngx_connection_t *c, ngx_rtmp_addr_conf_t *addr_conf)
 static u_char *
 ngx_rtmp_log_error(ngx_log_t *log, u_char *buf, size_t len)
 {
+    //printf("ngx_rtmp_init ngx_rtmp_log_error\n");
     u_char                     *p;
     ngx_rtmp_session_t         *s;
     ngx_rtmp_error_log_ctx_t   *ctx;
@@ -251,6 +250,7 @@ ngx_rtmp_log_error(ngx_log_t *log, u_char *buf, size_t len)
     ctx = log->data;
 
     p = ngx_snprintf(buf, len, ", client: %V", ctx->client);
+
     len -= p - buf;
     buf = p;
 
@@ -327,6 +327,7 @@ ngx_rtmp_close_session_handler(ngx_event_t *e)
 void
 ngx_rtmp_finalize_session(ngx_rtmp_session_t *s)
 {
+    //printf("ngx_rtmp_init ngx_rtmp_finalize_session\n");
     ngx_event_t        *e;
     ngx_connection_t   *c;
 
@@ -334,8 +335,10 @@ ngx_rtmp_finalize_session(ngx_rtmp_session_t *s)
     if (c->destroyed) {
         return;
     }
+    printf("ngx_rtmp_init ngx_rtmp_finalize_session session:%p\n", s);
 
     ngx_log_debug0(NGX_LOG_DEBUG_RTMP, c->log, 0, "finalize session");
+    ngx_log_error(NGX_LOG_INFO, c->log, 0, "finalize session");
 
     c->destroyed = 1;
     e = &s->close;
