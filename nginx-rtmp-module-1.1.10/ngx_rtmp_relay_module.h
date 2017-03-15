@@ -11,6 +11,7 @@
 #include <ngx_config.h>
 #include <ngx_core.h>
 #include "ngx_rtmp.h"
+#include "ngx_rtmp_cmd_module.h"
 
 
 typedef struct {
@@ -75,5 +76,24 @@ ngx_rtmp_relay_static_pull_reconnect(ngx_event_t *ev);
 ngx_rtmp_relay_ctx_t *
 ngx_rtmp_relay_create_connection(ngx_rtmp_conf_ctx_t *cctx, ngx_str_t* name,
         ngx_rtmp_relay_target_t *target);
+
+typedef struct ngx_rtmp_relay_push_switch_s ngx_rtmp_relay_push_switch_t;
+struct ngx_rtmp_relay_push_switch_s  {
+    ngx_str_t                     name;
+    ngx_flag_t                    push;
+    ngx_rtmp_relay_push_switch_t  *next;
+};
+
+
+// 推流switch
+ngx_int_t
+ngx_rtmp_relay_ison_switch(ngx_rtmp_core_srv_conf_t *cscf, u_char *name);
+u_char *
+ngx_rtmp_relay_get_switch(ngx_rtmp_core_srv_conf_t *cscf);
+ngx_int_t
+ngx_rtmp_relay_add_switch(ngx_rtmp_core_srv_conf_t *cscf, u_char *name, ngx_flag_t push);
+ngx_int_t
+ngx_rtmp_relay_del_switch(ngx_rtmp_core_srv_conf_t *cscf, u_char *name);
+
 
 #endif /* _NGX_RTMP_RELAY_H_INCLUDED_ */

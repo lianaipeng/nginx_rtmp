@@ -681,9 +681,10 @@ static void
 ngx_log_insert(ngx_log_t *log, ngx_log_t *new_log)
 {
     ngx_log_t  tmp;
-
+    
+    // log_level 值越小级别越高，排序越靠前
     if (new_log->log_level > log->log_level) {
-
+        
         /*
          * list head address is permanent, insert new log after
          * head and swap its contents with head
@@ -696,7 +697,7 @@ ngx_log_insert(ngx_log_t *log, ngx_log_t *new_log)
         log->next = new_log;
         return;
     }
-
+    
     while (log->next) {
         if (new_log->log_level > log->next->log_level) {
             new_log->next = log->next;
