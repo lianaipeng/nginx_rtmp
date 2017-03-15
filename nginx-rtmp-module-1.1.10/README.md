@@ -354,6 +354,13 @@ rtmp_auto_push directive.
     rtmp {
         # publish 链接空闲5s 就断开
         drop_idle_publisher 5s;
+        
+        # 专门打出特别的日志，到指定文件
+        rtmp_log logs/rtmp/rtmp.log info;
+        # 打出rtmp的所有的error日志 
+        error_log logs/rtmp/error.log info;
+
+
         server  {
             # 监听端口
             listen 1935;
