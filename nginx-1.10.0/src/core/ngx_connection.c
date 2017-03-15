@@ -1028,6 +1028,7 @@ ngx_close_listening_sockets(ngx_cycle_t *cycle)
 ngx_connection_t *
 ngx_get_connection(ngx_socket_t s, ngx_log_t *log)
 {
+    //printf("ngx_connection ngx_get_connection\n");
     ngx_uint_t         instance;
     ngx_event_t       *rev, *wev;
     ngx_connection_t  *c;
@@ -1074,7 +1075,8 @@ ngx_get_connection(ngx_socket_t s, ngx_log_t *log)
     c->fd = s;
     c->log = log;
     c->rtmp_log = log;
-
+    //printf("ngx_connection ngx_get_connection log:%p rtmp_log:%p\n", c->log, c->rtmp_log);
+    
     instance = rev->instance;
 
     ngx_memzero(rev, sizeof(ngx_event_t));
@@ -1111,6 +1113,7 @@ ngx_free_connection(ngx_connection_t *c)
 void
 ngx_close_connection(ngx_connection_t *c)
 {
+    //printf("ngx_connection ngx_close_connection\n");
     ngx_err_t     err;
     ngx_uint_t    log_error, level;
     ngx_socket_t  fd;

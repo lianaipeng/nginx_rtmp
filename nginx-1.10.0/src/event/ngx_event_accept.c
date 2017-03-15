@@ -22,9 +22,10 @@ static void ngx_debug_accepted_connection(ngx_event_conf_t *ecf,
 void
 ngx_event_accept(ngx_event_t *ev)
 {
+    printf("ngx_event_accept ngx_event_accept\n");
     socklen_t          socklen;
     ngx_err_t          err;
-    ngx_log_t         *log;
+    ngx_log_t         *log, *rtmp_log;
     ngx_uint_t         level;
     ngx_socket_t       s;
     ngx_event_t       *rev, *wev;
@@ -178,7 +179,12 @@ ngx_event_accept(ngx_event_t *ev)
             ngx_close_accepted_connection(c);
             return;
         }
-
+        rtmp_log = ngx_palloc(c->pool, sizeof(ngx_log_t));
+        if (rtmp_log == NULL) {
+            ngx_close_accepted_connection(c);
+            return;
+        }
+        
         /* set a blocking mode for iocp and non-blocking mode for others */
 
         if (ngx_inherited_nonblocking) {
@@ -211,6 +217,7 @@ ngx_event_accept(ngx_event_t *ev)
 
         c->log = log;
         c->pool->log = log;
+        c->rtmp_log = rtmp_log;
 
         c->socklen = socklen;
         c->listening = ls;
