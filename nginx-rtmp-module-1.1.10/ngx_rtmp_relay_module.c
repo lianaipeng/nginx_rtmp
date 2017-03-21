@@ -517,6 +517,8 @@ ngx_rtmp_relay_create_connection(ngx_rtmp_conf_ctx_t *cctx, ngx_str_t* name,
     }
     rs->app_conf = cctx->app_conf;
     rs->relay = 1;
+    rs->publishing = 0;
+    //printf("ngx_rtmp_relay_module aaaaaaaaa %d\n", rs->publishing);
     rctx->session = rs;
     // SESSION
     ngx_rtmp_set_ctx(rs, rctx, ngx_rtmp_relay_module);
@@ -937,8 +939,11 @@ ngx_rtmp_relay_del_switch(ngx_rtmp_core_srv_conf_t *cscf, u_char *name)
     head = ngx_rtmp_relay_read_switch(cscf);
 
     for(node = &head; *node ; node=&(*node)->next ){
+        /*
+        if ( 0==ngx_strncmp(name, (*node)->name.data, ngx_strlen(name))
+                && (*node)->push == 0 ){
+          */     
         if ( 0==ngx_strncmp(name, (*node)->name.data, ngx_strlen(name)) ){
-               
             *node = (*node)->next;
             break;
         }
@@ -969,6 +974,7 @@ static ngx_int_t
 ngx_rtmp_relay_publish(ngx_rtmp_session_t *s, ngx_rtmp_publish_t *v)
 {
     printf("ngx_rtmp_relay_module ngx_rtmp_relay_publish RELAY START v->name:%s\n", v->name);
+    s->publishing = 1;
     ngx_rtmp_core_srv_conf_t       *cscf;
     cscf = ngx_rtmp_get_module_srv_conf(s, ngx_rtmp_core_module); 
     if ( cscf && cscf->push_switch ) {
@@ -1665,7 +1671,7 @@ ngx_rtmp_relay_handshake_done(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
 static void
 ngx_rtmp_relay_close(ngx_rtmp_session_t *s)
 {
-    printf("ngx_rtmp_relay_module ngx_rtmp_relay_close START\n");
+    printf("ngx_rtmp_relay_module ngx_rtmp_relay_close START session:%p relay:%d publishing:%d mount:%d\n", s, s->relay, s->publishing, s->mount);
     ngx_rtmp_core_srv_conf_t       *cscf;
     cscf = ngx_rtmp_get_module_srv_conf(s, ngx_rtmp_core_module); 
     if ( cscf && cscf->push_switch ) {
@@ -2131,7 +2137,7 @@ ngx_rtmp_relay_push_reconnect_switch(ngx_event_t *ev)
     name.len = racf->cscf->push_switch_name.len;
     name.data = racf->cscf->push_switch_name.data;
     printf("ngx_rtmp_relay_module ngx_rtmp_relay_push_reconnect_switch name:%s\n", name.data);
-    
+        
     t = racf->pushes.elts;
     for (n = 0; n < racf->pushes.nelts; ++n, ++t) {
         target = *t;
@@ -2266,17 +2272,7 @@ ngx_rtmp_relay_close_switch(ngx_rtmp_session_t *s)
     if (s->relay == 0)
         return;
     */
-    /*  
-    // 转推的play存在 s->ctx  publish没有创建
-    ngx_rtmp_relay_ctx_t               *ctx;
-    ctx = ngx_rtmp_get_module_ctx(s, ngx_rtmp_relay_module);
-    if (ctx == NULL) {
-        return;
-    }
-    printf("ngx_rtmp_relay_module ngx_rtmp_relay_close_switch s:%p relay:%d name:%s\n", s, s->relay, ctx->name.data);
-    */
-    
-                                        
+     
     /*
     // 暂时没用
     if (s->static_relay) {
@@ -2289,10 +2285,11 @@ ngx_rtmp_relay_close_switch(ngx_rtmp_session_t *s)
         for (cctx = &racf->rctx; *cctx; cctx = &(*cctx)->next) {
             ss = (*cctx)->session;       
             
+            printf("ngx_rtmp_relay_module ngx_rtmp_relay_close_switch play session:%p addr_text:%s ###0\n", ss, ss->connection->addr_text.data);
             if ( 0==ngx_strncmp(s->connection->addr_text.data
                         , ss->connection->addr_text.data, 
                         s->connection->addr_text.len) ){
-                printf("ngx_rtmp_relay_module ngx_rtmp_relay_close_switch play session:%p addr_text:%s\n", ss, ss->connection->addr_text.data);
+                printf("ngx_rtmp_relay_module ngx_rtmp_relay_close_switch play session:%p addr_text:%s ###1\n", ss, ss->connection->addr_text.data);
                 
                 *cctx = (*cctx)->next;
                 break;

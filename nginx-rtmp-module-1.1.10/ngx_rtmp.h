@@ -266,9 +266,14 @@ typedef struct {
     size_t                  out_queue;
     size_t                  out_cork;
     ngx_chain_t            *out[0];
-
-    unsigned                mount:1;  // 是否挂载转推的ctx
-    unsigned                publishing:1;
+    
+    unsigned                mount:1;
+    unsigned                ready:1;
+    uint32_t                 publishing;
+    /*
+    uint32_t                mount;  // 是否挂载转推的ctx
+    uint32_t                ready;  // 是否准备卸载 1为准备卸载
+     */
 } ngx_rtmp_session_t;
 
 

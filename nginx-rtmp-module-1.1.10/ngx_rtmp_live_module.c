@@ -2451,7 +2451,9 @@ ngx_rtmp_live_rctx_close(ngx_rtmp_live_app_conf_t *lacf, ngx_rtmp_session_t *s)
 
     // 卸载转推rctx
     ngx_rtmp_live_rctx_unmount(lacf);
-     
+    
+    return NGX_OK;
+
     // 关闭所有的rctx。新的推流会重新建立 
     for(rctx=lacf->rctx; rctx ; rctx = rctx->next){
         ss = rctx->session;
@@ -2466,19 +2468,19 @@ ngx_rtmp_live_rctx_close(ngx_rtmp_live_app_conf_t *lacf, ngx_rtmp_session_t *s)
 ngx_int_t 
 ngx_rtmp_live_rctx_unmount(ngx_rtmp_live_app_conf_t *lacf)
 {
-    //printf("ngx_rtmp_live_module ngx_rtmp_live_rctx_unmount\n");
     ngx_rtmp_live_ctx_t            **cctx;//, *pctx;
     
     if ( !lacf || !lacf->rctx )
         return NGX_ERROR;
-
+    printf("ngx_rtmp_live_module ngx_rtmp_live_rctx_unmount\n");
+    
     // 找到推流ctx链表中 挂载rctx的位置 并卸载
     for (cctx = &lacf->lctx; *cctx; cctx = &(*cctx)->next) {
         if (*cctx == lacf->rctx){
             // 挂载标志 重置
             if(lacf->lctx && lacf->lctx->session)
                 lacf->lctx->session->mount = 0;
-            
+                    
             // 卸载之后指向publish ctx头部的指针置空
             lacf->lctx = NULL;
             // 避免同时多个publish同时操作rctx链表
@@ -2497,28 +2499,45 @@ ngx_int_t
 ngx_rtmp_live_rctx_mount(ngx_rtmp_live_app_conf_t *lacf, ngx_rtmp_session_t *s, ngx_rtmp_live_ctx_t *ctx)
 {
     //printf("ngx_rtmp_live_module ngx_rtmp_live_rctx_mount\n");
+    if ( lacf->lctx && lacf->lctx->session && lacf->lctx->session->ready == 1){
+        lacf->lctx->session->ready = 0;    
+        ngx_rtmp_live_rctx_unmount(lacf);
+    }
+    //if ( lacf->lctx && lacf->lctx->session && lacf->lctx->session->mount == 1)
+     
     ngx_rtmp_live_ctx_t              **ppctx;
+    ngx_rtmp_live_ctx_t              *rctx;
     if ( !ctx || !ctx->stream || !lacf)
         return NGX_ERROR;
-
+    
     // 如果该流已经挂载 就不需要重复挂载
     if( s->mount || lacf->mount )
         return NGX_OK;
-
+    printf("ngx_rtmp_live_module ngx_rtmp_live_rctx_mount\n");
+    
     // 找到链表尾部 挂载转推ctx 
     for (ppctx = &(ctx->stream->ctx); *ppctx ; ppctx=&(*ppctx)->next) {}
-
+    
     if ( lacf->rctx ) {
         // 存储该publish的 ctx链表头
         lacf->lctx = ctx->stream->ctx;
         // 改变挂载状态 
         lacf->mount = 1;
-
+    
         // 将转推链接挂挂载 在尾部
         *ppctx = lacf->rctx; 
         // 修改该session 为挂载状态 
         s->mount = 1;
     }
+     
+    for (rctx=lacf->rctx; rctx ; rctx=rctx->next){
+        rctx->meta_version = 0;
+        /*
+        rctx->cs[0].active = 0;
+        rctx->cs[1].active = 0;
+        */
+    }
+    
     return NGX_OK;
 }
 
@@ -2543,9 +2562,14 @@ ngx_rtmp_live_av(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
     cscf = ngx_rtmp_get_module_srv_conf(s, ngx_rtmp_core_module); 
     if ( cscf && cscf->push_switch ) {
         if (ngx_rtmp_relay_ison_switch(cscf, ctx->stream->name) == NGX_OK){
-            ngx_rtmp_live_rctx_mount(lacf, s, ctx);
+                
+            ngx_uint_t                      prio;
+            prio = (h->type==NGX_RTMP_MSG_VIDEO?ngx_rtmp_get_video_frame_type(in):0);
+            if (prio==NGX_RTMP_VIDEO_KEY_FRAME && h->type==NGX_RTMP_MSG_VIDEO)
+                ngx_rtmp_live_rctx_mount(lacf, s, ctx);
         } else {
-            ngx_rtmp_live_rctx_close(lacf, s);
+            if (s->mount == 1)
+                s->ready = 1;
         }
     }
     
@@ -2613,9 +2637,9 @@ ngx_rtmp_live_av(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
 static ngx_int_t
 ngx_rtmp_live_publish(ngx_rtmp_session_t *s, ngx_rtmp_publish_t *v)
 {
-    //printf("ngx_rtmp_live_module ngx_rtmp_live_publish name:%s\n", v->name);
     // relay_module 使用           
-    s->publishing = 1;
+    //s->publishing = 1;
+    //printf("ngx_rtmp_live_module ngx_rtmp_live_publish name:%s session:%p publishing:%d\n", v->name, s, s->publishing);
 
     ngx_rtmp_live_app_conf_t       *lacf;
     ngx_rtmp_live_ctx_t            *ctx;
@@ -2672,9 +2696,9 @@ next:
 static ngx_int_t
 ngx_rtmp_live_play(ngx_rtmp_session_t *s, ngx_rtmp_play_t *v)
 {
-    //printf("ngx_rtmp_live_module ngx_rtmp_live_play relay:%d v->name:%s\n", s->relay, v->name);
     // relay_module 使用           
-    s->publishing = 0;  
+    //s->publishing = 0;  
+    //printf("ngx_rtmp_live_module ngx_rtmp_live_play name:%s session:%p publishing:%d relay:%d \n", v->name, s, s->publishing, s->relay);
          
     ngx_rtmp_live_app_conf_t       *lacf;
     ngx_rtmp_live_ctx_t            *ctx;
