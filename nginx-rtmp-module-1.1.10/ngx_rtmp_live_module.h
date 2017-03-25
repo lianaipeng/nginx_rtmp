@@ -54,6 +54,8 @@ struct ngx_rtmp_live_stream_s {
     ngx_msec_t                          epoch;
     unsigned                            active:1;
     unsigned                            publishing:1;
+    
+    ngx_uint_t                          log_lts;    // 记录日志使用（5s记录一次）
 };
 
 

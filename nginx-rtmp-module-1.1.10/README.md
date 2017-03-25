@@ -322,6 +322,11 @@ rtmp_auto_push directive.
     rtmp_auto_push on;
 
     rtmp {
+        # 专门打出特别的日志，到指定文件
+        rtmp_log logs/rtmp/rtmp.log info;
+        # 打出rtmp的所有的error日志 
+        error_log logs/rtmp/error.log info;
+
         server {
             listen 1935;
 

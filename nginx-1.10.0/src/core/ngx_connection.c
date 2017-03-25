@@ -1073,7 +1073,8 @@ ngx_get_connection(ngx_socket_t s, ngx_log_t *log)
     c->write = wev;
     c->fd = s;
     c->log = log;
-
+    c->rtmp_log = log; // 修改log指针主要在ngx_event_accept中
+    
     instance = rev->instance;
 
     ngx_memzero(rev, sizeof(ngx_event_t));

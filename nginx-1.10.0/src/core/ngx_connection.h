@@ -139,7 +139,8 @@ struct ngx_connection_s {
     off_t               sent;
 
     ngx_log_t          *log;
-
+    ngx_log_t          *rtmp_log;
+    
     ngx_pool_t         *pool;
 
     int                 type;
@@ -208,6 +209,15 @@ struct ngx_connection_s {
     c->log->wdata = l->wdata;                                                \
     if (!(c->log->log_level & NGX_LOG_DEBUG_CONNECTION)) {                   \
         c->log->log_level = l->log_level;                                    \
+    }
+#define ngx_set_connection_rtmplog(c, l)                                          \
+    \
+    c->rtmp_log->file = l->file;                                                  \
+    c->rtmp_log->next = l->next;                                                  \
+    c->rtmp_log->writer = l->writer;                                              \
+    c->rtmp_log->wdata = l->wdata;                                                \
+    if (!(c->rtmp_log->log_level & NGX_LOG_DEBUG_CONNECTION)) {                   \
+        c->rtmp_log->log_level = l->log_level;                                    \
     }
 
 

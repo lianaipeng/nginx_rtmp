@@ -178,6 +178,11 @@ ngx_rtmp_init_session(ngx_connection_t *c, ngx_rtmp_addr_conf_t *addr_conf)
     c->log->data = ctx;
     c->log->action = NULL;
 
+    c->rtmp_log->connection = c->number;
+    c->rtmp_log->handler = ngx_rtmp_log_error;
+    c->rtmp_log->data = ctx;
+    c->rtmp_log->action = NULL;
+
     c->log_error = NGX_ERROR_INFO;
 
     s->ctx = ngx_pcalloc(c->pool, sizeof(void *) * ngx_rtmp_max_module);
@@ -188,6 +193,15 @@ ngx_rtmp_init_session(ngx_connection_t *c, ngx_rtmp_addr_conf_t *addr_conf)
 
     cscf = ngx_rtmp_get_module_srv_conf(s, ngx_rtmp_core_module);
 
+    /*
+    // 重定向error_log
+    ngx_rtmp_core_app_conf_t       *cacf;
+    cacf = ngx_rtmp_get_module_app_conf(s, ngx_rtmp_core_module);
+    ngx_set_connection_log(s->connection, cacf->error_log);
+    */
+    ngx_set_connection_log(s->connection, cscf->error_log);
+    ngx_set_connection_rtmplog(s->connection, cscf->rtmp_log);
+    
     s->out_queue = cscf->out_queue;
     s->out_cork = cscf->out_cork;
     s->in_streams = ngx_pcalloc(c->pool, sizeof(ngx_rtmp_stream_t)

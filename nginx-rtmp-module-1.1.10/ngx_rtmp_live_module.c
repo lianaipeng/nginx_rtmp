@@ -27,6 +27,8 @@ static char *ngx_rtmp_live_set_msec_slot(ngx_conf_t *cf, ngx_command_t *cmd,
        void *conf);
 static void ngx_rtmp_live_start(ngx_rtmp_session_t *s);
 static void ngx_rtmp_live_stop(ngx_rtmp_session_t *s);
+static void
+ngx_rtmp_live_bandwidth_tochar(ngx_uint_t bandwidth, u_char * buf, size_t size);
 
 
 static ngx_command_t  ngx_rtmp_live_commands[] = {
@@ -618,6 +620,8 @@ ngx_rtmp_live_close_stream(ngx_rtmp_session_t *s, ngx_rtmp_close_stream_t *v)
                 }
             }
         }
+
+        ngx_log_error(NGX_LOG_INFO, s->connection->rtmp_log, 0, ",STOP, timestamp:%uL stream_name:%s ", ngx_cached_time->sec, ctx->stream->name);
     }
 
     if (ctx->stream->ctx) {
@@ -1033,7 +1037,43 @@ ngx_rtmp_live_av(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
                               &ctx->stream->bw_in_video,
                               h->mlen);
 
+    
+    // 打印日志 
+    ngx_uint_t log_cts = ngx_cached_time->sec;
+    ngx_uint_t log_delta = log_cts - ctx->stream->log_lts;
+    if ( log_delta > (NGX_RTMP_BANDWIDTH_INTERVAL-1) ){
+        ngx_rtmp_codec_ctx_t                *codec;
+        codec = ngx_rtmp_get_module_ctx(s, ngx_rtmp_codec_module);
+
+        u_char  video_buf[NGX_INT64_LEN + 9];
+        u_char  audio_buf[NGX_INT64_LEN + 9];
+        ngx_rtmp_live_bandwidth_tochar(ctx->stream->bw_in_video.bandwidth, video_buf, sizeof(video_buf));
+        ngx_rtmp_live_bandwidth_tochar(ctx->stream->bw_in_audio.bandwidth, audio_buf, sizeof(audio_buf));
+
+        ngx_log_error(NGX_LOG_INFO, s->connection->rtmp_log, 0, 
+                ",LIVEAV, timestamp:%uL stream_name:%s bw_in_video:%s bw_in_audio:%s frame_rate:%uL sample_rate:%uL channels:%uL", 
+                log_cts, ctx->stream->name, video_buf, audio_buf, codec->frame_rate, codec->sample_rate, codec->audio_channels);
+        ctx->stream->log_lts = log_cts;
+    }
+
     return NGX_OK;
+}
+
+static void
+ngx_rtmp_live_bandwidth_tochar(ngx_uint_t bandwidth, u_char * buf, size_t size)
+{
+    ngx_memzero(buf, size);
+
+    if(bandwidth*8 > 1073741824){
+        ngx_snprintf(buf, size, "%.2fGb/s", (double)(bandwidth*8)/1073741824);
+    } else if (bandwidth*8 > 1048576){
+        ngx_snprintf(buf, size, "%.2fMb/s", (double)(bandwidth*8)/1048576);
+    } else if (bandwidth*8 > 1024){
+        ngx_snprintf(buf, size, "%uLKb/s", (bandwidth*8)/1024);
+    } else {
+        ngx_snprintf(buf, size, "%uLB/s", (bandwidth*8));
+    }
+    //printf("ngx_rtmp_live_module ngx_rtmp_live_bandwidth_tochar:%ld, %s\n", bandwidth, buf);
 }
 
 
@@ -1061,7 +1101,10 @@ ngx_rtmp_live_publish(ngx_rtmp_session_t *s, ngx_rtmp_publish_t *v)
     if (ctx == NULL || !ctx->publishing) {
         goto next;
     }
-
+    
+    // 打印日志
+    ngx_log_error(NGX_LOG_INFO, s->connection->rtmp_log, 0, ",START, timestamp:%uL stream_name:%s", ngx_cached_time->sec, ctx->stream->name);
+    
     ctx->silent = v->silent;
 
     if (!ctx->silent) {
