@@ -371,7 +371,7 @@ rtmp_auto_push directive.
                 # 是否允许空闲stream存在（默认为允许on），如果不允许：
                 # 1.当publish断开时，需要立即清空plays
                 # 2.当流名不存在时，paly不允许链接
-#            idle_streams on;
+                # idle_streams on;
                 idle_streams off;
                 
                 # 缓存功能 开启/关闭 (该开关为缓存 总开关)
